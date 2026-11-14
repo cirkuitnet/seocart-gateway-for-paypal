@@ -72,6 +72,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 
 		$required = $this->placeLive( 'card' );
 		$this->assertSame( 'approved', $this->approveInBrowser( $required, self::STEP_UP_FAILS ), 'The card fields did not hand the failed check back to the store.' );
+		$this->assertSame( 'NO', $this->liabilityShiftOf( (string) $required['paypal_order'] ), 'The failing step-up card no longer fails its check: the test proves nothing of the policy.' );
 
 		$declined = $this->payments()->queryGateway( $this->ref( $required['intent_uuid'] ) );
 		$this->assertSame( array( 'declined', 'liability_shift_not_possible' ), array( $declined?->outcome->value, $declined?->errorCode ), 'Under require, a card whose liability stayed with the store is declined.' );
@@ -85,11 +86,26 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		$accepted = $this->placeLive( 'card' );
 		$this->assertSame( 'approved', $this->approveInBrowser( $accepted, self::STEP_UP_FAILS ) );
 
+		$shift = $this->liabilityShiftOf( (string) $accepted['paypal_order'] );
+		LiveRun::report( 'liability-shift', 'failed step-up ' . self::shown( $shift ) );
+		$this->assertSame( 'NO', $shift, 'The failing step-up card no longer fails its check: the test proves nothing of the policy.' );
+
 		$authorized = $this->payments()->queryGateway( $this->ref( $accepted['intent_uuid'] ) );
-		$this->assertSame( 'approved', $authorized?->outcome->value, 'Under accept, the card is authorized whatever its check said.' );
-		LiveRun::report( 'liability-shift', 'failed step-up ' . self::shown( (string) ( $this->paypalOrder( (string) $accepted['paypal_order'] )['payment_source']['card']['authentication_result']['liability_shift'] ?? 'none' ) ) );
+		$this->assertSame( 'approved', $authorized?->outcome->value, 'Under accept, the card whose check failed is authorized.' );
 
 		$this->end();
+	}
+
+	/**
+	 * Returns the liability shift of an order's card as PayPal holds it now.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $orderId The order.
+	 * @return string The shift; `none` when the card carries no check's result.
+	 */
+	private function liabilityShiftOf( string $orderId ): string {
+		return (string) ( $this->paypalOrder( $orderId )['payment_source']['card']['authentication_result']['liability_shift'] ?? 'none' );
 	}
 
 	/**
