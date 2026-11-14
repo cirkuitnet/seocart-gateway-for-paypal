@@ -89,8 +89,13 @@ final class PayPalCodesTest extends TestCase {
 			$this->assertSame( $issue, PayPalCodes::issue( $issue ) );
 		}
 
-		foreach ( array( 'AUTH_CAPTURE_NOT_ENABLED', 'PAYEE_ACCOUNT_RESTRICTED', 'PERMISSION_DENIED', 'DECIMAL_PRECISION', 'DUPLICATE_INVOICE_ID', 'ORDER_NOT_APPROVED', 'MAX_CAPTURE_AMOUNT_EXCEEDED' ) as $issue ) {
+		foreach ( array( 'REDIRECT_PAYER_FOR_ALTERNATE_FUNDING', 'CARD_TYPE_NOT_SUPPORTED', 'DOMESTIC_TRANSACTION_REQUIRED', 'TRANSACTION_LIMIT_EXCEEDED' ) as $issue ) {
+			$this->assertContains( $issue, PayPalCodes::DECLINES, "{$issue} is the payer's, the card's or a limit's refusal." );
+		}
+
+		foreach ( array( 'AUTH_CAPTURE_NOT_ENABLED', 'PAYEE_ACCOUNT_RESTRICTED', 'PERMISSION_DENIED', 'DECIMAL_PRECISION', 'DUPLICATE_INVOICE_ID', 'ORDER_NOT_APPROVED', 'MAX_CAPTURE_AMOUNT_EXCEEDED', 'TRANSACTION_RECEIVING_LIMIT_EXCEEDED', 'NOT_ENABLED_FOR_CARD_PROCESSING', 'TRANSACTION_DISPUTED' ) as $issue ) {
 			$this->assertNotContains( $issue, PayPalCodes::DECLINES );
+			$this->assertSame( $issue, PayPalCodes::issue( $issue ), 'Known, so a log line names it.' );
 		}
 
 		$this->assertSame( array_values( array_unique( PayPalCodes::ISSUES ) ), PayPalCodes::ISSUES, 'Each issue is listed once.' );

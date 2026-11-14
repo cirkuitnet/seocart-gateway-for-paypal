@@ -167,6 +167,22 @@ final class QueryTest extends GatewayTestCase {
 	}
 
 	/**
+	 * Tests the payer's, the funding's, the card's and the limit's refusals of the authorize call: each a decline with its issue, so the shopper is told at once, never a query that asks again until the window ends.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_refusal_of_the_payer_the_funding_the_card_or_a_limit_is_a_decline(): void {
+		foreach ( array( 'REDIRECT_PAYER_FOR_ALTERNATE_FUNDING', 'CARD_TYPE_NOT_SUPPORTED', 'DOMESTIC_TRANSACTION_REQUIRED', 'TRANSACTION_LIMIT_EXCEEDED' ) as $issue ) {
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::text( 'order-approved' ) );
+			$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 422, Fixtures::issue( $issue ) );
+
+			$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Declined, Fixtures::DEBUG_ID, strtolower( $issue ) );
+		}
+
+		$this->assertNotContains( 'paypal.request_refused', $this->context->log->codes() );
+	}
+
+	/**
 	 * Tests an authorize call refused for a reason that is not the shopper's, such as a feature the merchant's account lacks: no answer, logged by its issue, never a decline.
 	 *
 	 * @since 0.2.0
