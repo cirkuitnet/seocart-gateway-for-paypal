@@ -252,13 +252,14 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 		});
 
 		if ((await settled(browserPage, CHALLENGE_WAIT_MS)) !== null) {
-			return answer(false);
+			// Awaited here, so the browser is closed only once the answer is read.
+			return await answer(false);
 		}
 
 		// To complete the challenge, its code when it asks for one, otherwise its button; to fail it, its button.
 		const step = (control === 'complete' ? await enterCode(browserPage, Date.now() + CONTROL_MS) : null) ?? (await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS));
 
-		return step === null ? { word: 'no-control' } : answer(step === 'challenge');
+		return step === null ? { word: 'no-control' } : await answer(step === 'challenge');
 	} finally {
 		await launched.close();
 		await served.close();
