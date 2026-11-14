@@ -1,10 +1,10 @@
 {
 	"request": {
-		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-7717-b031-bc526d855351\",\"description\":\"000004\"}],\"payment_source\":{\"card\":{\"vault_id\":\"5c410600ew807883n\",\"stored_credential\":{\"payment_initiator\":\"CUSTOMER\",\"payment_type\":\"ONE_TIME\",\"usage\":\"SUBSEQUENT\"}}}}",
+		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-7de4-a163-938f4bafdcfe\",\"description\":\"000004\"}],\"payment_source\":{\"card\":{\"vault_id\":\"5c410600ew807883n\",\"stored_credential\":{\"payment_initiator\":\"CUSTOMER\",\"payment_type\":\"ONE_TIME\",\"usage\":\"SUBSEQUENT\"}}}}",
 		"headers": {
 			"content-type": "application/json",
 			"paypal-mock-response": "{\"mock_application_codes\":\"INSTRUMENT_DECLINED\"}",
-			"paypal-request-id": "019b76da-a800-7717-b031-bc526d855351",
+			"paypal-request-id": "019b76da-a800-7de4-a163-938f4bafdcfe",
 			"prefer": "return=representation"
 		},
 		"host": "api-m.sandbox.paypal.com",

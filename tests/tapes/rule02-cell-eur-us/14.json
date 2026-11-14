@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "019b76da-a800-71e2-99f8-e0f8761374eb:void",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/payments/authorizations/8GD0550170892353E/void"
+	},
+	"response": {
+		"body": "{\"id\":\"8GD0550170892353E\",\"status\":\"VOIDED\",\"amount\":{\"currency_code\":\"EUR\",\"value\":\"29.47\"},\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T11:07:47-08:00\",\"create_time\":\"2026-11-14T11:07:47-08:00\",\"update_time\":\"2026-11-14T11:07:49-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/8GD0550170892353E\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 200
+	}
+}

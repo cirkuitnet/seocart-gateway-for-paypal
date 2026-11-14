@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"EUR\",\"value\":\"29.47\"},\"custom_id\":\"019b76da-a800-71e2-99f8-e0ff697eef4d\",\"description\":\"000008\"}],\"payment_source\":{\"card\":{\"attributes\":{\"verification\":{\"method\":\"SCA_WHEN_REQUIRED\"}}}}}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "019b76da-a800-71e2-99f8-e0ff697eef4d",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/checkout/orders"
+	},
+	"response": {
+		"body": "{\"id\":\"740900202U3456053\",\"intent\":\"AUTHORIZE\",\"status\":\"CREATED\",\"payment_source\":{\"card\":{}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"EUR\",\"value\":\"29.47\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000008\",\"custom_id\":\"019b76da-a800-71e2-99f8-e0ff697eef4d\"}],\"create_time\":\"2026-11-14T19:07:56Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/740900202U3456053\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://www.sandbox.paypal.com/checkoutnow?token=740900202U3456053\",\"rel\":\"approve\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/740900202U3456053\",\"rel\":\"update\",\"method\":\"PATCH\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/740900202U3456053/authorize\",\"rel\":\"authorize\",\"method\":\"POST\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 201
+	}
+}

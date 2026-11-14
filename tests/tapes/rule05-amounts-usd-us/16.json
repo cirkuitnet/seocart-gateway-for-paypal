@@ -3,15 +3,15 @@
 		"body": "{\"amount\":{\"currency_code\":\"USD\",\"value\":\"29.99\"},\"final_capture\":true}",
 		"headers": {
 			"content-type": "application/json",
-			"paypal-request-id": "019b76da-a800-7717-b031-bc4f3be5fc6c:capture",
+			"paypal-request-id": "019b76da-a800-7de4-a163-938c5a2bca11:capture",
 			"prefer": "return=representation"
 		},
 		"host": "api-m.sandbox.paypal.com",
 		"method": "POST",
-		"path": "/v2/payments/authorizations/25S47011AP0115649/capture"
+		"path": "/v2/payments/authorizations/48W908394L243363V/capture"
 	},
 	"response": {
-		"body": "{\"id\":\"0C3400221C7443810\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"29.99\"},\"final_capture\":true,\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"disbursement_mode\":\"INSTANT\",\"seller_receivable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"29.99\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"1.27\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"28.72\"}},\"custom_id\":\"019b76da-a800-7717-b031-bc4f3be5fc6c\",\"status\":\"COMPLETED\",\"processor_response\":{\"avs_code\":\"\",\"cvv_code\":\"M\",\"response_code\":\"0000\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"create_time\":\"2026-11-14T13:24:00Z\",\"update_time\":\"2026-11-14T13:24:00Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/0C3400221C7443810\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/0C3400221C7443810/refund\",\"rel\":\"refund\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/25S47011AP0115649\",\"rel\":\"up\",\"method\":\"GET\"}],\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"}}",
+		"body": "{\"id\":\"6G844586PG4981406\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"29.99\"},\"final_capture\":true,\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"disbursement_mode\":\"INSTANT\",\"seller_receivable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"29.99\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"1.27\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"28.72\"}},\"custom_id\":\"019b76da-a800-7de4-a163-938c5a2bca11\",\"status\":\"COMPLETED\",\"processor_response\":{\"avs_code\":\"\",\"cvv_code\":\"M\",\"response_code\":\"0000\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"create_time\":\"2026-11-14T19:08:45Z\",\"update_time\":\"2026-11-14T19:08:45Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/6G844586PG4981406\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/6G844586PG4981406/refund\",\"rel\":\"refund\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/48W908394L243363V\",\"rel\":\"up\",\"method\":\"GET\"}],\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"}}",
 		"headers": {
 			"content-type": "application/json;charset=UTF-8"
 		},

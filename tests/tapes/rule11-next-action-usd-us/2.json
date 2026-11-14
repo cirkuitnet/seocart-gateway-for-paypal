@@ -1,9 +1,9 @@
 {
 	"request": {
-		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-7bc2-9df9-89d75beafdaf\",\"description\":\"000001\"}],\"payment_source\":{\"card\":{\"attributes\":{\"verification\":{\"method\":\"SCA_WHEN_REQUIRED\"}}}}}",
+		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-7b77-8f9a-6d90b3cdd616\",\"description\":\"000001\"}],\"payment_source\":{\"card\":{\"attributes\":{\"verification\":{\"method\":\"SCA_WHEN_REQUIRED\"}}}}}",
 		"headers": {
 			"content-type": "application/json",
-			"paypal-request-id": "019b76da-a800-7bc2-9df9-89d75beafdaf",
+			"paypal-request-id": "019b76da-a800-7b77-8f9a-6d90b3cdd616",
 			"prefer": "return=representation"
 		},
 		"host": "api-m.sandbox.paypal.com",
@@ -11,7 +11,7 @@
 		"path": "/v2/checkout/orders"
 	},
 	"response": {
-		"body": "{\"id\":\"5VA06589K1702845R\",\"intent\":\"AUTHORIZE\",\"status\":\"CREATED\",\"payment_source\":{\"card\":{}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000001\",\"custom_id\":\"019b76da-a800-7bc2-9df9-89d75beafdaf\"}],\"create_time\":\"2026-11-14T13:24:50Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/5VA06589K1702845R\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://www.sandbox.paypal.com/checkoutnow?token=5VA06589K1702845R\",\"rel\":\"approve\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/5VA06589K1702845R\",\"rel\":\"update\",\"method\":\"PATCH\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/5VA06589K1702845R/authorize\",\"rel\":\"authorize\",\"method\":\"POST\"}]}",
+		"body": "{\"id\":\"54T13429UM007590E\",\"intent\":\"AUTHORIZE\",\"status\":\"CREATED\",\"payment_source\":{\"card\":{}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000001\",\"custom_id\":\"019b76da-a800-7b77-8f9a-6d90b3cdd616\"}],\"create_time\":\"2026-11-14T19:09:47Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/54T13429UM007590E\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://www.sandbox.paypal.com/checkoutnow?token=54T13429UM007590E\",\"rel\":\"approve\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/54T13429UM007590E\",\"rel\":\"update\",\"method\":\"PATCH\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/54T13429UM007590E/authorize\",\"rel\":\"authorize\",\"method\":\"POST\"}]}",
 		"headers": {
 			"content-type": "application/json"
 		},

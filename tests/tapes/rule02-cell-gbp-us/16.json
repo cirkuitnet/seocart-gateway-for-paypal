@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"GBP\",\"value\":\"28.72\"},\"custom_id\":\"019b76da-a800-78ed-8c01-43e2531a7195\",\"description\":\"000011\"}],\"payment_source\":{\"card\":{\"vault_id\":\"5c410600ew807883n\",\"stored_credential\":{\"payment_initiator\":\"CUSTOMER\",\"payment_type\":\"ONE_TIME\",\"usage\":\"SUBSEQUENT\"}}}}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "019b76da-a800-78ed-8c01-43e2531a7195",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/checkout/orders"
+	},
+	"response": {
+		"body": "{\"id\":\"74J153318J158205U\",\"intent\":\"AUTHORIZE\",\"status\":\"COMPLETED\",\"payment_source\":{\"card\":{\"name\":\"Vaulted Test Card\",\"last_digits\":\"1881\",\"expiry\":\"2030-12\",\"brand\":\"VISA\",\"type\":\"UNKNOWN\",\"bin_details\":{}}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"GBP\",\"value\":\"28.72\"},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000011\",\"custom_id\":\"019b76da-a800-78ed-8c01-43e2531a7195\",\"soft_descriptor\":\"TEST STORE\",\"payments\":{\"authorizations\":[{\"status\":\"CREATED\",\"id\":\"0V195420V76866732\",\"amount\":{\"currency_code\":\"GBP\",\"value\":\"28.72\"},\"custom_id\":\"019b76da-a800-78ed-8c01-43e2531a7195\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"processor_response\":{\"cvv_code\":\"M\",\"response_code\":\"0000\"},\"expiration_time\":\"2026-12-13T19:08:16Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0V195420V76866732\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0V195420V76866732/capture\",\"rel\":\"capture\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0V195420V76866732/void\",\"rel\":\"void\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/74J153318J158205U\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T19:08:16Z\",\"update_time\":\"2026-11-14T19:08:16Z\",\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"}}]}}],\"create_time\":\"2026-11-14T19:08:16Z\",\"update_time\":\"2026-11-14T19:08:16Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/74J153318J158205U\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 201
+	}
+}

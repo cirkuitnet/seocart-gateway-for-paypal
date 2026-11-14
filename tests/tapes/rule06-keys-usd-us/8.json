@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{\"amount\":{\"currency_code\":\"USD\",\"value\":\"18.00\"},\"custom_id\":\"0c752de9-be5f-5d90-8053-6bd18e25b856\"}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "0c752de9-be5f-5d90-8053-6bd18e25b856",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/payments/captures/82593822EE097745M/refund"
+	},
+	"response": {
+		"body": "{\"id\":\"7TA45344CT7252055\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"18.00\"},\"seller_payable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"18.00\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"0.00\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"18.00\"},\"total_refunded_amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"}},\"custom_id\":\"0c752de9-be5f-5d90-8053-6bd18e25b856\",\"status\":\"COMPLETED\",\"create_time\":\"2026-11-14T11:08:58-08:00\",\"update_time\":\"2026-11-14T11:08:58-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/refunds/7TA45344CT7252055\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/82593822EE097745M\",\"rel\":\"up\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 201
+	}
+}

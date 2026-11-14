@@ -3,15 +3,15 @@
 		"body": "{}",
 		"headers": {
 			"content-type": "application/json",
-			"paypal-request-id": "019b76da-a800-71e8-90e1-1a2983bfa053:void",
+			"paypal-request-id": "019b76da-a800-7861-b63c-7ccae08a46d9:void",
 			"prefer": "return=representation"
 		},
 		"host": "api-m.sandbox.paypal.com",
 		"method": "POST",
-		"path": "/v2/payments/authorizations/6L938834T1714891U/void"
+		"path": "/v2/payments/authorizations/582625096T128271E/void"
 	},
 	"response": {
-		"body": "{\"id\":\"6L938834T1714891U\",\"status\":\"VOIDED\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T05:24:21-08:00\",\"create_time\":\"2026-11-14T05:24:21-08:00\",\"update_time\":\"2026-11-14T05:24:24-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/6L938834T1714891U\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"body": "{\"id\":\"582625096T128271E\",\"status\":\"VOIDED\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T11:09:23-08:00\",\"create_time\":\"2026-11-14T11:09:23-08:00\",\"update_time\":\"2026-11-14T11:09:25-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/582625096T128271E\",\"rel\":\"self\",\"method\":\"GET\"}]}",
 		"headers": {
 			"content-type": "application/json"
 		},

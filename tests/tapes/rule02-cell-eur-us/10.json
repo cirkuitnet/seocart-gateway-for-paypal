@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{\"amount\":{\"currency_code\":\"EUR\",\"value\":\"17.47\"},\"custom_id\":\"8b5aff9d-91d2-5ef3-99e4-4f58a0e70258\"}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "8b5aff9d-91d2-5ef3-99e4-4f58a0e70258",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/payments/captures/5CC79319L1133803R/refund"
+	},
+	"response": {
+		"body": "{\"id\":\"9XH86217CA660492N\",\"amount\":{\"currency_code\":\"EUR\",\"value\":\"17.47\"},\"seller_payable_breakdown\":{\"gross_amount\":{\"currency_code\":\"EUR\",\"value\":\"17.47\"},\"paypal_fee\":{\"currency_code\":\"EUR\",\"value\":\"0.00\"},\"net_amount\":{\"currency_code\":\"EUR\",\"value\":\"17.47\"},\"net_amount_breakdown\":[{\"payable_amount\":{\"currency_code\":\"USD\",\"value\":\"19.66\"},\"converted_amount\":{\"currency_code\":\"EUR\",\"value\":\"17.47\"},\"exchange_rate\":{\"source_currency\":\"USD\",\"target_currency\":\"EUR\",\"value\":\"0.888661915\"}}],\"total_refunded_amount\":{\"currency_code\":\"EUR\",\"value\":\"29.47\"}},\"custom_id\":\"8b5aff9d-91d2-5ef3-99e4-4f58a0e70258\",\"status\":\"COMPLETED\",\"create_time\":\"2026-11-14T11:07:44-08:00\",\"update_time\":\"2026-11-14T11:07:44-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/refunds/9XH86217CA660492N\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/5CC79319L1133803R\",\"rel\":\"up\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 201
+	}
+}

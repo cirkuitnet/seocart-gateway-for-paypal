@@ -1,17 +1,17 @@
 {
 	"request": {
-		"body": "{\"amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"custom_id\":\"5feb20c2-de7e-58a4-87a0-eb6c50687ac4\"}",
+		"body": "{\"amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"custom_id\":\"07d274a1-7a0f-5842-87d5-56e408ceb5e3\"}",
 		"headers": {
 			"content-type": "application/json",
-			"paypal-request-id": "5feb20c2-de7e-58a4-87a0-eb6c50687ac4",
+			"paypal-request-id": "07d274a1-7a0f-5842-87d5-56e408ceb5e3",
 			"prefer": "return=representation"
 		},
 		"host": "api-m.sandbox.paypal.com",
 		"method": "POST",
-		"path": "/v2/payments/captures/98U32099BM366734D/refund"
+		"path": "/v2/payments/captures/7PV98756FW060861T/refund"
 	},
 	"response": {
-		"body": "{\"id\":\"24C54332DE995140S\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"seller_payable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"0.00\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"total_refunded_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"}},\"custom_id\":\"5feb20c2-de7e-58a4-87a0-eb6c50687ac4\",\"status\":\"COMPLETED\",\"create_time\":\"2026-11-14T05:25:40-08:00\",\"update_time\":\"2026-11-14T05:25:40-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/refunds/24C54332DE995140S\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/98U32099BM366734D\",\"rel\":\"up\",\"method\":\"GET\"}]}",
+		"body": "{\"id\":\"46P52128LN706242X\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"seller_payable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"0.00\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"},\"total_refunded_amount\":{\"currency_code\":\"USD\",\"value\":\"12.00\"}},\"custom_id\":\"07d274a1-7a0f-5842-87d5-56e408ceb5e3\",\"status\":\"COMPLETED\",\"create_time\":\"2026-11-14T11:10:30-08:00\",\"update_time\":\"2026-11-14T11:10:30-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/refunds/46P52128LN706242X\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/7PV98756FW060861T\",\"rel\":\"up\",\"method\":\"GET\"}]}",
 		"headers": {
 			"content-type": "application/json"
 		},
