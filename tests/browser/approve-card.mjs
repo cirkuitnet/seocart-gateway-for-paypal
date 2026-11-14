@@ -219,11 +219,12 @@ async function serve(html) {
 }
 
 // Opens the page, types the card, submits it, takes the bank's challenge when one comes, and waits for PayPal's answer:
-// the word for it, and the issue PayPal named when the fields refused.
+// the word for it, and the issue PayPal named when the fields refused. Without a browser of its own it runs Playwright's
+// Chromium as a whole browser in its headless mode, never the stripped headless shell, as a shopper's browser is whole.
 async function approve({ clientId, orderId, currency, card, control, browser }) {
 	const { chromium } = await import('playwright');
 	const served = await serve(page(clientId, orderId, currency));
-	const launched = await chromium.launch({ headless: true, ...(browser ? { executablePath: browser } : {}) });
+	const launched = await chromium.launch({ headless: true, ...(browser ? { executablePath: browser } : { channel: 'chromium' }) });
 
 	try {
 		const browserPage = await (await launched.newContext()).newPage();
