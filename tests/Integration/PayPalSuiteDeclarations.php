@@ -14,6 +14,7 @@ namespace SEOCart\GatewayForPayPal\Tests\Integration;
 use SEOCart\Contracts\Payment\Mode;
 use SEOCart\GatewayForPayPal\CertificateCache;
 use SEOCart\GatewayForPayPal\Gateway;
+use SEOCart\GatewayForPayPal\PayPalApi;
 use SEOCart\GatewayForPayPal\PayPalCodes;
 use SEOCart\Tests\Conformance\Payment\NotProducible;
 use SEOCart\Tests\Conformance\Payment\Scenario;
@@ -97,6 +98,48 @@ trait PayPalSuiteDeclarations {
 			Scenario::Expires->value                 => new NotProducible( 'PayPal offers no call that cancels or expires an order awaiting the shopper, and an authorization\'s 29 days cannot be waited for.' ),
 			Scenario::Pending->value                 => new NotProducible( 'A card authorization is decided at once: a pending one comes from a risk review the sandbox does not stage.' ),
 		);
+	}
+
+	/**
+	 * Returns the request with which the gateway exchanges its client id and secret for an access token: PayPal's OAuth 2.0 client-credentials call.
+	 *
+	 * PayPal documents `POST /v1/oauth2/token` (https://developer.paypal.com/api/rest/authentication/)
+	 * as the exchange of the REST app's client id and secret, sent as HTTP Basic credentials, for
+	 * an access token, with the body `grant_type=client_credentials` and no query. It moves no money,
+	 * and the gateway's request names no payment: no PayPal-Request-Id, no uuid, no id of PayPal's
+	 * and no amount (PayPalApi::requestToken()).
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return array<int, array<string, string>> The request.
+	 *
+	 * @phpstan-return list<array{method: string, path: string}>
+	 */
+	protected function credentialRequests(): array {
+		return array(
+			array(
+				'method' => 'POST',
+				'path'   => '/' . PayPalApi::TOKEN_PATH,
+			),
+		);
+	}
+
+	/**
+	 * Tells the suite that PayPal's declined payment leaves nothing to ask about: PayPal refuses to create the order, so the decline names no order.
+	 *
+	 * The recorded decline shows it: tests/tapes/rule08-query-answers-usd-us/2.json is the create
+	 * of the declined payment's order, `POST /v2/checkout/orders` with the sandbox's mocked
+	 * `INSTRUMENT_DECLINED`, answered HTTP 422 `UNPROCESSABLE_ENTITY` whose body holds the issue, a
+	 * message, PayPal's debug id and a link to the issue's page, and no order: no `id`, no `status`,
+	 * no purchase unit. The gateway's decline therefore names no order, and query() of it has
+	 * nothing to read.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return bool True.
+	 */
+	protected function declineLeavesNoPayment(): bool {
+		return true;
 	}
 
 	/**
@@ -208,10 +251,13 @@ trait PayPalSuiteDeclarations {
 	}
 
 	/**
-	 * Returns the shapes of PayPal's ids a tape holds that are twenty characters or more, each the letters and digits after its prefix.
+	 * Returns the shapes of PayPal's ids a tape holds, each the letters and digits after its prefix.
 	 *
-	 * Orders, authorizations, captures and refunds are named by 17 characters, below the
-	 * scrubber's twenty, and need no shape.
+	 * Orders, authorizations, captures and refunds are named by 17 capitals and digits, with no
+	 * prefix (PayPalCodes::id()): below the scrubber's twenty, so no token rule needs their shape,
+	 * but they often hold a run of 13 to 16 digits that passes a card number's checksum, and the
+	 * shape lets such an id, as a whole value or a whole segment of a URL's path, be read as the id
+	 * it is.
 	 *
 	 * @since 0.2.0
 	 *
@@ -219,6 +265,8 @@ trait PayPalSuiteDeclarations {
 	 */
 	protected function publicIdShapes(): array {
 		return array(
+			// An order's, an authorization's, a capture's or a refund's id.
+			''     => 17,
 			// The REST app's id, in the token call's answer.
 			'APP-' => 17,
 		);
