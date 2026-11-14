@@ -83,6 +83,15 @@ final class Results {
 	public const DECLINED = 'declined';
 
 	/**
+	 * The states of an authorization that holds no money and never will again.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	public const ENDED_AUTHORIZATIONS = array( 'VOIDED', 'EXPIRED', 'DENIED' );
+
+	/**
 	 * Returns an order's status.
 	 *
 	 * @since 0.2.0
@@ -123,19 +132,49 @@ final class Results {
 	}
 
 	/**
-	 * Returns the order's authorization: the first, as the gateway authorizes an order once.
+	 * Returns the order's live authorizations: each not voided, expired or denied, so it holds the money or took it, in PayPal's order.
+	 *
+	 * The gateway authorizes an order once; PayPal may list another authorization on it, such as
+	 * one the merchant made in PayPal's dashboard after the first expired. The gateway acts on the one
+	 * live authorization and chooses among none (Gateway::orderAuthorization()).
 	 *
 	 * @since 0.2.0
 	 *
 	 * @param array<mixed> $order The order.
-	 * @return array<mixed> The authorization; empty when the order has none yet.
+	 * @return list<array<mixed>> The live authorizations; empty when the order has none.
 	 */
-	public static function authorizationOf( array $order ): array {
-		return Fields::objects( self::purchaseUnit( $order ), 'payments', 'authorizations' )[0] ?? array();
+	public static function liveAuthorizations( array $order ): array {
+		return array_values( array_filter( self::authorizationsOf( $order ), static fn( array $authorization ): bool => ! in_array( Fields::text( $authorization, 'status' ), self::ENDED_AUTHORIZATIONS, true ) ) );
 	}
 
 	/**
-	 * Returns the captures made under the order's authorization: each whose `up` link names that authorization, whatever its status.
+	 * Returns the order's newest authorization by its `create_time`: the one whose state is the order's when none is live.
+	 *
+	 * Of two created at the same second, or without a time PayPal wrote, the one PayPal lists later.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $order The order.
+	 * @return array<mixed> The authorization; empty when the order has none.
+	 */
+	public static function newestAuthorization( array $order ): array {
+		$newest = array();
+		$latest = PHP_INT_MIN;
+
+		foreach ( self::authorizationsOf( $order ) as $authorization ) {
+			$created = self::createdAt( $authorization );
+
+			if ( $created >= $latest ) {
+				$newest = $authorization;
+				$latest = $created;
+			}
+		}
+
+		return $newest;
+	}
+
+	/**
+	 * Returns the captures made under an authorization of the order: each whose `up` link names that authorization, whatever its status.
 	 *
 	 * The link is what tells captures apart: every capture of the order carries the purchase unit's
 	 * `custom_id`, the intent's uuid, whether the store made it or the merchant did in PayPal's
@@ -143,11 +182,12 @@ final class Results {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @param array<mixed> $order The order.
-	 * @return list<array<mixed>> The captures, in PayPal's order; empty when the order has no authorization or it no capture.
+	 * @param array<mixed> $order         The order.
+	 * @param array<mixed> $authorization The authorization the gateway acts on (Gateway::orderAuthorization()); empty for none.
+	 * @return list<array<mixed>> The captures, in PayPal's order; empty when there is no authorization or it no capture.
 	 */
-	public static function capturesOf( array $order ): array {
-		$authorizationId = PayPalCodes::id( Fields::text( self::authorizationOf( $order ), 'id' ) );
+	public static function capturesOf( array $order, array $authorization ): array {
+		$authorizationId = PayPalCodes::id( Fields::text( $authorization, 'id' ) );
 
 		if ( null === $authorizationId ) {
 			return array();
@@ -407,6 +447,40 @@ final class Results {
 	 */
 	public static function orderAmount( array $order ): Money {
 		return Amounts::money( Fields::map( self::purchaseUnit( $order ), 'amount' ) );
+	}
+
+	/**
+	 * Returns every authorization the order lists, in PayPal's order.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $order The order.
+	 * @return list<array<mixed>> The authorizations.
+	 */
+	private static function authorizationsOf( array $order ): array {
+		return Fields::objects( self::purchaseUnit( $order ), 'payments', 'authorizations' );
+	}
+
+	/**
+	 * Returns when PayPal created an object, as seconds since the epoch.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $source The object.
+	 * @return int The time; PHP_INT_MIN when it has none PayPal wrote that can be read.
+	 */
+	private static function createdAt( array $source ): int {
+		$created = Fields::text( $source, 'create_time' );
+
+		if ( null === $created ) {
+			return PHP_INT_MIN;
+		}
+
+		try {
+			return ( new \DateTimeImmutable( $created ) )->getTimestamp();
+		} catch ( \Exception ) {
+			return PHP_INT_MIN;
+		}
 	}
 
 	/**

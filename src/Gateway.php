@@ -462,7 +462,7 @@ final class Gateway implements PaymentGateway {
 	 * @since 0.1.0
 	 * @since 0.2.0 Asks PayPal.
 	 *
-	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order or the order no authorization, or the capture is pending.
+	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order or the order no authorization or more than one live one (orderAuthorization()), or the capture is pending.
 	 *
 	 * @param CaptureRequest $request The intent and the amount.
 	 * @return GatewayResult PayPal's answer, not yet applied.
@@ -471,7 +471,8 @@ final class Gateway implements PaymentGateway {
 		$this->requireCurrency( 'capture', $request->amount );
 
 		$orderId         = $this->knownOrderId( 'capture', $request->providerIntentId );
-		$authorizationId = $this->authorizationId( 'capture', Results::authorizationOf( $this->readOrder( 'capture', $request->mode, $orderId, $request->intentUuid ) ), $orderId );
+		$order           = $this->readOrder( 'capture', $request->mode, $orderId, $request->intentUuid );
+		$authorizationId = $this->authorizationId( 'capture', $this->orderAuthorization( 'capture', $order, $request->intentUuid ), $orderId );
 		$answer          = $this->api()->post(
 			$request->mode,
 			PayPalApi::path( 'v2', 'payments', 'authorizations', $authorizationId, 'capture' ),
@@ -491,7 +492,7 @@ final class Gateway implements PaymentGateway {
 				}
 
 				if ( $answer->isIssue( 'AUTHORIZATION_ALREADY_CAPTURED', 'PREVIOUSLY_CAPTURED' ) ) {
-					$captures = Results::capturesOf( $this->readOrder( 'capture', $request->mode, $orderId, $request->intentUuid ) );
+					$captures = $this->capturesOf( 'capture', $this->readOrder( 'capture', $request->mode, $orderId, $request->intentUuid ), $request->intentUuid );
 
 					return $this->captured( $this->onlyCapture( 'capture', $captures, $orderId, $request->intentUuid ), $request->intentUuid, $orderId );
 				}
@@ -511,14 +512,14 @@ final class Gateway implements PaymentGateway {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, or its authorization is captured.
+	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, the order more than one live authorization (orderAuthorization()), or its authorization is captured.
 	 *
 	 * @param VoidRequest $request The intent and why it is voided.
 	 * @return GatewayResult PayPal's answer, not yet applied.
 	 */
 	public function void( VoidRequest $request ): GatewayResult {
 		$orderId       = $this->knownOrderId( 'void', $request->providerIntentId );
-		$authorization = Results::authorizationOf( $this->readOrder( 'void', $request->mode, $orderId, $request->intentUuid ) );
+		$authorization = $this->orderAuthorization( 'void', $this->readOrder( 'void', $request->mode, $orderId, $request->intentUuid ), $request->intentUuid );
 
 		if ( array() === $authorization ) {
 			return $this->mapped( 'void', $request->amount, static fn(): GatewayResult => Results::voided( $request->intentUuid, $request->amount, $orderId, $orderId ) );
@@ -551,7 +552,7 @@ final class Gateway implements PaymentGateway {
 	 * @since 0.1.0
 	 * @since 0.2.0 Asks PayPal.
 	 *
-	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, the order's authorization not exactly one capture, or the refund is pending.
+	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, the order more than one live authorization, its authorization not exactly one capture, or the refund is pending.
 	 *
 	 * @param GatewayRefund $request The intent, the amount and the refund's uuid.
 	 * @return GatewayResult PayPal's answer, not yet applied: an approval names PayPal's refund.
@@ -560,7 +561,7 @@ final class Gateway implements PaymentGateway {
 		$this->requireCurrency( 'refund', $request->amount );
 
 		$orderId   = $this->knownOrderId( 'refund', $request->providerIntentId );
-		$captures  = Results::capturesOf( $this->readOrder( 'refund', $request->mode, $orderId, $request->intentUuid ) );
+		$captures  = $this->capturesOf( 'refund', $this->readOrder( 'refund', $request->mode, $orderId, $request->intentUuid ), $request->intentUuid );
 		$captureId = PayPalCodes::id( Fields::text( $this->onlyCapture( 'refund', $captures, $orderId, $request->intentUuid ), 'id' ) ) ?? $this->unexpected( 'refund', 'not_a_capture', $orderId );
 		$answer    = $this->api()->post(
 			$request->mode,
@@ -804,7 +805,7 @@ final class Gateway implements PaymentGateway {
 			return Results::approveAtPayPal( $order, $request->intentUuid );
 		}
 
-		$authorization = Results::authorizationOf( $order );
+		$authorization = $this->orderAuthorization( 'authorize', $order, $request->intentUuid );
 
 		if ( 'COMPLETED' !== $status || array() === $authorization ) {
 			throw new \UnexpectedValueException( 'A vaulted card\'s order that PayPal did not process.' );
@@ -952,8 +953,9 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Answers from an order PayPal processed: the capture of its authorization once taken, otherwise its authorization.
 	 *
-	 * An authorization holding more than one capture (onlyCapture()), or for another amount than
-	 * the intent's that could not be voided (authorized()), is no answer.
+	 * An order with more than one live authorization (orderAuthorization()), an authorization
+	 * holding more than one capture (onlyCapture()), or one for another amount than the intent's
+	 * that could not be voided (authorized()), is no answer.
 	 *
 	 * @since 0.2.0
 	 *
@@ -964,10 +966,11 @@ final class Gateway implements PaymentGateway {
 	 * @return GatewayResult|null The result; null while PayPal reviews the authorization or the capture.
 	 */
 	private function settled( PaymentQuery $query, array $order ): ?GatewayResult {
-		$orderId  = Results::orderId( $order );
-		$captures = Results::capturesOf( $order );
-		$capture  = array() === $captures ? array() : $this->onlyCapture( 'query', $captures, $orderId, $query->intentUuid );
-		$status   = Fields::text( $capture, 'status' );
+		$orderId       = Results::orderId( $order );
+		$authorization = $this->orderAuthorization( 'query', $order, $query->intentUuid );
+		$captures      = Results::capturesOf( $order, $authorization );
+		$capture       = array() === $captures ? array() : $this->onlyCapture( 'query', $captures, $orderId, $query->intentUuid );
+		$status        = Fields::text( $capture, 'status' );
 
 		if ( in_array( $status, array( 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED' ), true ) ) {
 			return Results::capture( $capture, $query->intentUuid, $orderId );
@@ -976,8 +979,6 @@ final class Gateway implements PaymentGateway {
 		if ( 'PENDING' === $status ) {
 			return null;
 		}
-
-		$authorization = Results::authorizationOf( $order );
 
 		if ( array() === $authorization ) {
 			throw new \UnexpectedValueException( 'A PayPal order processed without an authorization.' );
@@ -1106,6 +1107,61 @@ final class Gateway implements PaymentGateway {
 	}
 
 	/**
+	 * Returns the authorization the gateway acts on: the order's one live authorization, or, when none is live, its newest, whose state the order's then is.
+	 *
+	 * The gateway authorizes an order once, but PayPal may list another authorization on it, such
+	 * as one the merchant made in PayPal's dashboard after the first expired; the one holding the
+	 * money is the one not voided, expired or denied (Results::liveAuthorizations()). The gateway
+	 * never chooses among several live ones: an order with more is logged with the count alone, no
+	 * id, and is no answer, for a person to settle.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @throws GatewayUnavailable When the order holds more than one live authorization.
+	 *
+	 * @param string       $operation  The operation, for the log.
+	 * @param array<mixed> $order      The order.
+	 * @param string       $intentUuid The intent.
+	 * @return array<mixed> The authorization; empty when the order has none.
+	 */
+	private function orderAuthorization( string $operation, array $order, string $intentUuid ): array {
+		$live = Results::liveAuthorizations( $order );
+
+		if ( count( $live ) <= 1 ) {
+			return $live[0] ?? Results::newestAuthorization( $order );
+		}
+
+		$this->context->logger()->warning(
+			'paypal.authorization_unresolved',
+			'The order holds more than one authorization that is not voided, expired or denied, so the gateway chose none and nothing was applied.',
+			array(
+				'operation'          => $operation,
+				'intent_uuid'        => $intentUuid,
+				'provider_intent_id' => PayPalCodes::logged( Fields::text( $order, 'id' ) ),
+				'authorizations'     => count( $live ),
+			)
+		);
+
+		throw new GatewayUnavailable( sprintf( 'The PayPal %1$s found %2$d live authorizations on the order, where it acts on one.', $operation, count( $live ) ) );
+	}
+
+	/**
+	 * Returns the captures made under the authorization the gateway acts on (orderAuthorization()).
+	 *
+	 * @since 0.2.0
+	 *
+	 * @throws GatewayUnavailable When the order holds more than one live authorization.
+	 *
+	 * @param string       $operation  The operation, for the log.
+	 * @param array<mixed> $order      The order.
+	 * @param string       $intentUuid The intent.
+	 * @return list<array<mixed>> The captures; empty when there is no authorization or it no capture.
+	 */
+	private function capturesOf( string $operation, array $order, string $intentUuid ): array {
+		return Results::capturesOf( $order, $this->orderAuthorization( $operation, $order, $intentUuid ) );
+	}
+
+	/**
 	 * Returns the one capture made under the order's authorization: the store's, which captures once, as the final capture.
 	 *
 	 * The gateway never chooses among captures: an authorization with none, or with more than one,
@@ -1117,7 +1173,7 @@ final class Gateway implements PaymentGateway {
 	 * @throws GatewayUnavailable When the authorization holds no capture, or more than one.
 	 *
 	 * @param string             $operation  The operation, for the log.
-	 * @param list<array<mixed>> $captures   The captures of the order's authorization (Results::capturesOf()).
+	 * @param list<array<mixed>> $captures   The captures of the order's authorization (capturesOf()).
 	 * @param string             $orderId    The order.
 	 * @param string             $intentUuid The intent.
 	 * @return array<mixed> The capture.
@@ -1229,7 +1285,7 @@ final class Gateway implements PaymentGateway {
 	 * @throws GatewayUnavailable When the order has no authorization, or its id is not a PayPal id.
 	 *
 	 * @param string       $operation     The operation, for the log.
-	 * @param array<mixed> $authorization The order's authorization (Results::authorizationOf()); empty for none.
+	 * @param array<mixed> $authorization The order's authorization (orderAuthorization()); empty for none.
 	 * @param string       $orderId       The order's id.
 	 * @return string The authorization's id.
 	 */

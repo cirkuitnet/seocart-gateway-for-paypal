@@ -238,6 +238,59 @@ final class Fixtures {
 	}
 
 	/**
+	 * Returns an authorization of the fixtures' intent, for 20.00 USD, with an id, a status and the time PayPal created it.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $id        The authorization's id.
+	 * @param string $status    Its status.
+	 * @param string $createdAt When PayPal created it, as PayPal writes it.
+	 * @return array<mixed> The authorization.
+	 */
+	public static function authorization( string $id, string $status, string $createdAt ): array {
+		return array(
+			'status'      => $status,
+			'id'          => $id,
+			'amount'      => array(
+				'currency_code' => 'USD',
+				'value'         => '20.00',
+			),
+			'custom_id'   => self::INTENT_UUID,
+			'links'       => array(
+				array(
+					'href'   => 'https://api.sandbox.paypal.com/v2/payments/authorizations/' . $id,
+					'rel'    => 'self',
+					'method' => 'GET',
+				),
+			),
+			'create_time' => $createdAt,
+			'update_time' => $createdAt,
+		);
+	}
+
+	/**
+	 * Returns the order fixture with the authorizations and the captures given, as PayPal lists them.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param list<array<mixed>> $authorizations The order's authorizations, such as authorization()'s.
+	 * @param list<array<mixed>> $captures       Optional. The order's captures, such as captureOf()'s. Default none.
+	 * @return string The order, encoded.
+	 */
+	public static function orderWithAuthorizations( array $authorizations, array $captures = array() ): string {
+		$order    = self::object( 'order-authorized' );
+		$payments = array( 'authorizations' => $authorizations );
+
+		if ( array() !== $captures ) {
+			$payments['captures'] = $captures;
+		}
+
+		$order['purchase_units'][0]['payments'] = $payments;
+
+		return self::encode( $order );
+	}
+
+	/**
 	 * Returns the 422 fixture with another issue.
 	 *
 	 * @since 0.2.0
