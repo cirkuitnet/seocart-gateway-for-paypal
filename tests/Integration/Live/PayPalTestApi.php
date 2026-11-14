@@ -21,8 +21,8 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
  * These requests are the tests', not the gateway's, so they go around WordPress's HTTP API, which
  * the conformance harness watches, and around the recording transport. They use PHP's curl, to the
  * sandbox's API host alone, with an access token asked for once with the sandbox app's client id
- * and secret and kept in this object. A failure names the method, the path and PayPal's status and
- * error name, never a body, a header or a query.
+ * and secret and kept in this object. A failure names the method, the path with its ids as `{id}`,
+ * and PayPal's status and error name, never a body, a header or a query.
  *
  * @since 0.2.0
  */
@@ -202,7 +202,8 @@ final class PayPalTestApi {
 	 * @phpstan-param list<string> $headers
 	 */
 	private function exchange( string $method, string $target, ?string $body, array $headers ): array {
-		$path = explode( '?', $target, 2 )[0];
+		// A failure names the path with its ids as `{id}`: an id of PayPal's may hold a run of digits MessageGuard refuses to print.
+		$path = (string) preg_replace( '#/[A-Z0-9]{17}(?=/|$)#', '/{id}', explode( '?', $target, 2 )[0] );
 
 		// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init, WordPress.WP.AlternativeFunctions.curl_curl_setopt_array, WordPress.WP.AlternativeFunctions.curl_curl_exec, WordPress.WP.AlternativeFunctions.curl_curl_getinfo, WordPress.WP.AlternativeFunctions.curl_curl_errno -- the test's own requests, outside WordPress's HTTP API, which the conformance harness keeps for the gateway's.
 		$curl = curl_init( Gateway::API_BASES['test'] . $target );
