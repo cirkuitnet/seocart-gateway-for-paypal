@@ -331,6 +331,11 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Returns the gateway's one declaration, built from constants: no read, no request, no WordPress call.
 	 *
+	 * The idempotency profile says PayPal keeps a PayPal-Request-Id for 45 days, and cannot be
+	 * searched by SEOCart's references: the intent's and the refund's uuids travel with every
+	 * request, but PayPal finds an order only by its own id, so the gateway never answers that
+	 * PayPal has no record of a payment or a refund.
+	 *
 	 * @since 0.1.0
 	 * @since 0.2.0 Declares the modes, the settings, the matrix, the idempotency profile and the hosts.
 	 *
@@ -345,7 +350,7 @@ final class Gateway implements PaymentGateway {
 			array( Mode::Test, Mode::Live ),
 			self::settings(),
 			self::matrix(),
-			new IdempotencyProfile( self::KEY_RETENTION_SECONDS, true, 0 ),
+			new IdempotencyProfile( self::KEY_RETENTION_SECONDS, false, 0 ),
 			self::hosts()
 		);
 	}
@@ -583,16 +588,18 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Finds a refund by its uuid among the refunds PayPal lists on the order, which it does at once.
 	 *
+	 * A refund the order does not list is no answer, never a refund declined `not_found`: PayPal
+	 * cannot be searched by the refund's uuid (describe()'s idempotency profile), so the gateway does
+	 * not say that PayPal made none, and the refund's claim stays open for a person.
+	 *
 	 * @since 0.1.0
 	 * @since 0.2.0 Asks PayPal.
 	 *
 	 * @throws GatewayUnavailable When PayPal's answer cannot be read, the recorded id is not an order's, the order is another intent's, or a refund it lists is not named by a PayPal id (every one is checked before any is compared).
 	 *
 	 * @param GatewayRefund $request The refund, as it was asked.
-	 * @return GatewayResult|null The refund's result; a refund declined `not_found` when the order's
-	 *                            authorization holds a capture and the order no refund under the uuid;
-	 *                            null when the intent has no order, its authorization no capture, or
-	 *                            PayPal refused the read.
+	 * @return GatewayResult|null The refund's result; null when the intent has no order, the order lists no
+	 *                            refund under the uuid, or PayPal refused the read.
 	 */
 	public function queryRefund( GatewayRefund $request ): ?GatewayResult {
 		if ( null === $request->providerIntentId ) {
@@ -619,11 +626,7 @@ final class Gateway implements PaymentGateway {
 			}
 		}
 
-		if ( array() === Results::capturesOf( $order ) ) {
-			return null;
-		}
-
-		return $this->mapped( 'query_refund', $request->amount, static fn(): GatewayResult => Results::refundNotFound( $request->intentUuid, $request->amount, $orderId ) );
+		return null;
 	}
 
 	/**
@@ -635,13 +638,14 @@ final class Gateway implements PaymentGateway {
 	 * authorization. A completed order answers the capture of its authorization or the
 	 * authorization; a voided one, or an authorization voided or expired, is declined `expired`; an
 	 * order or an authorization for another amount than the intent's is declined `amount_changed`.
-	 * An order PayPal does not know is declined `not_found`. PayPal cannot be searched by the
-	 * intent's uuid, so an intent without an order is no answer.
+	 * PayPal cannot be searched by the intent's uuid (describe()'s idempotency profile), so the
+	 * gateway never answers `not_found`: an intent without an order is no answer, and an order PayPal
+	 * says it does not know is logged and is no answer, for a person to look at.
 	 *
 	 * @since 0.1.0
 	 * @since 0.2.0 Asks PayPal.
 	 *
-	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, or the recorded id is not an order's.
+	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, such as for an order it does not know, or the recorded id is not an order's.
 	 *
 	 * @param PaymentQuery $query The intent.
 	 * @return GatewayResult|null The latest answer; null while it is still deciding, or when the intent has no order.
@@ -655,10 +659,6 @@ final class Gateway implements PaymentGateway {
 		$answer  = $this->api()->get( $query->mode, PayPalApi::path( 'v2', 'checkout', 'orders', $orderId ) );
 
 		if ( $answer->isError() ) {
-			if ( 404 === $answer->status && 'RESOURCE_NOT_FOUND' === $answer->errorName() ) {
-				return $this->mapped( 'query', $query->amount, static fn(): GatewayResult => Results::notFound( $query->intentUuid, $query->amount, $orderId ) );
-			}
-
 			$this->refusedRequest( 'query', $answer );
 		}
 

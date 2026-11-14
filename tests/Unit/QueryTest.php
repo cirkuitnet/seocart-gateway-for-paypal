@@ -29,8 +29,9 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * another amount is voided at once and declined the same. A completed order answers its capture or
  * its authorization; an authorization voided or expired, or a voided order, is declined `expired`,
  * never an approved void. PayPal's "authorized or completed meanwhile" is answered from the order
- * read again. A refusal that is not the payer's or the card's is no answer, never a decline. An
- * order PayPal does not know is declined `not_found`; an intent without an order is no answer.
+ * read again. A refusal that is not the payer's or the card's is no answer, never a decline. PayPal
+ * cannot be searched by the intent's uuid, so nothing is `not_found`: an order PayPal does not know,
+ * and an intent without an order, are no answer.
  *
  * Planted violations, each shown red and removed:
  * - query() authorizing a `CREATED` order: the waiting test fails (a request was sent);
@@ -302,14 +303,15 @@ final class QueryTest extends GatewayTestCase {
 	}
 
 	/**
-	 * Tests an order PayPal does not know: declined `not_found`; and an intent without an order: no answer, nothing sent.
+	 * Tests an order PayPal does not know, and an intent without an order: never `not_found`, as PayPal cannot be searched by the intent's uuid; the first is no answer, logged for a person, and the second nothing, with nothing sent.
 	 *
 	 * @since 0.2.0
 	 */
-	public function test_an_unknown_order_is_not_found_and_an_intent_without_one_is_no_answer(): void {
+	public function test_an_unknown_order_or_an_intent_without_one_is_no_answer_never_not_found(): void {
 		$this->context->paypal->answer( 'GET', self::orderPath(), 404, Fixtures::text( 'error-404' ) );
 
-		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Declined, null, 'not_found' );
+		$this->unavailable( fn() => $this->gateway->query( self::query() ) );
+		$this->assertSame( array( 404, 'RESOURCE_NOT_FOUND' ), array( $this->context->log->contextOf( 'paypal.request_refused' )['http_status'] ?? null, $this->context->log->contextOf( 'paypal.request_refused' )['error_name'] ?? null ) );
 
 		$sent = count( $this->context->paypal->requests );
 		$this->assertNull( $this->gateway->query( new PaymentQuery( Fixtures::INTENT_UUID, null, self::money( 2000 ), Mode::Test ) ) );

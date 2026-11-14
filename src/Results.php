@@ -18,7 +18,6 @@ use SEOCart\Contracts\Payment\GatewayResult;
 use SEOCart\Contracts\Payment\NextAction;
 use SEOCart\Contracts\Payment\Operation;
 use SEOCart\Contracts\Payment\Outcome;
-use SEOCart\Contracts\Payment\PaymentGateway;
 use SEOCart\Support\Money;
 
 // phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- These exceptions report an answer the gateway cannot read, which it turns into GatewayUnavailable; they are never HTML.
@@ -301,22 +300,6 @@ final class Results {
 	}
 
 	/**
-	 * Maps an order PayPal does not know: an authorization declined `not_found`.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @throws \UnexpectedValueException When the contract refuses the result.
-	 *
-	 * @param string $intentUuid The intent asked about.
-	 * @param Money  $amount     The intent's amount.
-	 * @param string $orderId    The order id asked for.
-	 * @return GatewayResult The decline.
-	 */
-	public static function notFound( string $intentUuid, Money $amount, string $orderId ): GatewayResult {
-		return self::result( Operation::Authorize, Outcome::Declined, $intentUuid, $amount, null, $orderId, PaymentGateway::NOT_FOUND );
-	}
-
-	/**
 	 * Maps an order PayPal voided before anything was authorized: an authorization declined `expired`.
 	 *
 	 * @since 0.2.0
@@ -348,22 +331,6 @@ final class Results {
 		$orderId = self::orderId( $order );
 
 		return self::result( Operation::Authorize, Outcome::Declined, $intentUuid, self::orderAmount( $order ), $orderId, $orderId, self::LIABILITY_NOT_SHIFTED );
-	}
-
-	/**
-	 * Maps a complete list of an order's refunds that holds none under the refund's uuid: a refund declined `not_found`.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @throws \UnexpectedValueException When the contract refuses the result.
-	 *
-	 * @param string $intentUuid The intent.
-	 * @param Money  $amount     The refund's amount, as asked.
-	 * @param string $orderId    The order.
-	 * @return GatewayResult The decline, naming no object.
-	 */
-	public static function refundNotFound( string $intentUuid, Money $amount, string $orderId ): GatewayResult {
-		return self::result( Operation::Refund, Outcome::Declined, $intentUuid, $amount, null, $orderId, PaymentGateway::NOT_FOUND );
 	}
 
 	/**

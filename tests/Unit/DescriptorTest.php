@@ -24,9 +24,9 @@ use SEOCart\Support\Schema\Privacy;
 /**
  * The descriptor declares the id, two modes, the six settings of a mode (the client secret the only
  * credential, no webhook signing secret, every name free of a card field's), the matrix of the
- * certified account country in USD, GBP and EUR, PayPal's 45-day request ids, searchable, and the
- * four hosts, each with every field the readme discloses. It is built from constants: asked twice,
- * it reads nothing and sends nothing.
+ * certified account country in USD, GBP and EUR, PayPal's 45-day request ids, not searchable by
+ * SEOCart's uuids, and the four hosts, each with every field the readme discloses. It is built
+ * from constants: asked twice, it reads nothing and sends nothing.
  *
  * @since 0.2.0
  */
@@ -117,7 +117,7 @@ final class DescriptorTest extends GatewayTestCase {
 	public function test_request_ids_are_kept_45_days_and_refunds_are_found_at_once(): void {
 		$profile = $this->gateway->describe()->idempotency;
 
-		$this->assertSame( array( 3888000, true, 0 ), array( $profile->keyRetentionSeconds, $profile->searchable, $profile->searchDelaySeconds ) );
+		$this->assertSame( array( 3888000, false, 0 ), array( $profile->keyRetentionSeconds, $profile->searchable, $profile->searchDelaySeconds ) );
 	}
 
 	/**

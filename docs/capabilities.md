@@ -23,4 +23,4 @@ What this plugin's payment gateway declares to SEOCart: the operations it suppor
 
 | Key retention   | Searchable by the store's references | Search delay |
 | --------------- | ------------------------------------ | ------------ |
-| 3888000 seconds | yes                                  | 0 seconds    |
+| 3888000 seconds | no                                   | 0 seconds    |

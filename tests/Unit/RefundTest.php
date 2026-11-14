@@ -25,11 +25,12 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * capture, or several, it refunds nothing. A refund PayPal completed or is giving is approved, one
  * that failed or was cancelled declined, and PayPal's refusals declined with their issue.
  * queryRefund() finds the refund among those PayPal lists on the order by its `custom_id`; an
- * order with a capture and no such refund answers `not_found`, never a refund made up.
+ * order with no such refund is no answer, never a refund made up, and never `not_found`, as PayPal
+ * cannot be searched by the refund's uuid.
  *
  * Planted violations, each shown red and removed:
  * - the refund sent without `custom_id`: the body test fails;
- * - queryRefund() answering the order's first refund whatever its uuid: the not-found test fails;
+ * - queryRefund() answering the order's first refund whatever its uuid: the never-made test fails;
  * - the first of several captures refunded: the one-capture test fails.
  *
  * @since 0.2.0
@@ -173,11 +174,11 @@ final class RefundTest extends GatewayTestCase {
 	}
 
 	/**
-	 * Tests a refund never made: not found when the order has a capture, no answer otherwise.
+	 * Tests a refund never made: no answer, never a refund made up, and never `not_found`, as PayPal cannot be searched by the refund's uuid.
 	 *
 	 * @since 0.2.0
 	 */
-	public function test_a_refund_never_made_is_not_found_never_made_up(): void {
+	public function test_a_refund_never_made_is_no_answer_never_made_up(): void {
 		$other              = Fixtures::object( 'refund' );
 		$other['custom_id'] = '0199c0de-0000-7000-8000-00000000b999';
 
@@ -186,9 +187,9 @@ final class RefundTest extends GatewayTestCase {
 		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::text( 'order-authorized' ) );
 		$this->context->paypal->answer( 'GET', self::orderPath(), 404, Fixtures::text( 'error-404' ) );
 
-		$this->assertResult( $this->gateway->queryRefund( self::refund() ), Outcome::Declined, null, 'not_found' );
-		$this->assertResult( $this->gateway->queryRefund( self::refund() ), Outcome::Declined, null, 'not_found' );
-		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'No capture, so no refund can be said to be missing.' );
+		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'Another refund is not this one.' );
+		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'A capture without refunds: PayPal made none, but the gateway does not say so.' );
+		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'No capture, so no refund.' );
 		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'A refused read is no answer.' );
 		$this->assertNull( $this->gateway->queryRefund( new GatewayRefund( Fixtures::INTENT_UUID, null, self::money( 1000 ), Fixtures::REFUND_UUID, Mode::Test ) ) );
 		$this->assertTrue( $this->context->paypal->isDrained() );
