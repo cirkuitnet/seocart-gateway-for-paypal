@@ -24,13 +24,17 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * shows: before the card, the order is `CREATED` with no card on it; while the bank's challenge is
  * on the shopper's screen, `CREATED` with the card's details and no check result; once the shopper
  * passed it, still `CREATED`, with the check's result and its liability shift. An order approved
- * with no check reads `APPROVED`. So a `CREATED` order is resumed only once its card carries the
- * check's liability shift: before that, the reconciliation job, which asks with no shopper there,
- * must neither authorize it nor decline it. Once resumed, it goes the way of an approved order:
- * the amount checked, then the liability policy, then the authorization under `{uuid}:authorize`.
+ * with no check reads `APPROVED`. So a `CREATED` order is resumed only once its card source carries
+ * a check's result with a documented liability shift and an authentication status other than `C`
+ * (challenge required), whether or not the card's details are there: before that, the
+ * reconciliation job, which asks with no shopper there, must neither authorize it nor decline it.
+ * Once resumed, it goes the way of an approved order: the amount checked, then the liability
+ * policy, then the authorization under `{uuid}:authorize`.
  *
- * Planted violation, shown red and removed: any card on a `CREATED` order taken as finished: the
- * mid-challenge test fails, as the order is authorized while the shopper is still answering the bank.
+ * Planted violations, each shown red and removed:
+ * - any card on a `CREATED` order taken as finished: the mid-challenge test fails, as the order is
+ *   authorized while the shopper is still answering the bank;
+ * - a check still requiring the challenge taken as finished: the challenge-required test fails.
  *
  * @since 0.2.0
  */
@@ -78,6 +82,59 @@ final class CardFieldsQueryTest extends GatewayTestCase {
 
 		$this->assertSame( array_fill( 0, 4, 'GET ' . self::orderPath() ), $this->context->paypal->sent(), 'Nothing is authorized while the shopper answers the bank.' );
 		$this->assertNotContains( 'paypal.declined', $this->context->log->codes() );
+	}
+
+	/**
+	 * Tests a check PayPal reports as still requiring the challenge (authentication status `C`, liability `UNKNOWN`, from PayPal's 3-D Secure table): still waiting under either policy, nothing authorized and nothing declined.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_check_still_requiring_the_challenge_is_still_waiting_under_either_policy(): void {
+		$challenge = self::created( 'UNKNOWN' );
+
+		$challenge['payment_source']['card']['authentication_result']['three_d_secure']['authentication_status'] = 'C';
+
+		foreach ( array( 'require', 'accept' ) as $policy ) {
+			$this->context->settings['test']['liability_shift_policy'] = $policy;
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $challenge ) );
+
+			$this->assertNull( $this->gateway->query( self::query() ), "Under {$policy}, the challenge is not answered yet." );
+		}
+
+		$this->assertSame( array_fill( 0, 2, 'GET ' . self::orderPath() ), $this->context->paypal->sent() );
+		$this->assertNotContains( 'paypal.declined', $this->context->log->codes() );
+	}
+
+	/**
+	 * Tests a finished check on a card whose details PayPal left out: resumed, as the details are optional in PayPal's answer.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_finished_check_without_the_cards_details_is_resumed(): void {
+		$order = self::created( 'POSSIBLE' );
+
+		$order['payment_source']['card'] = array( 'authentication_result' => self::result( 'POSSIBLE' ) );
+
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $order ) );
+		$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 201, Fixtures::text( 'order-authorized' ) );
+
+		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Approved, Fixtures::AUTHORIZATION_ID );
+	}
+
+	/**
+	 * Tests a `CREATED` order whose payment source is not a card, though it carries a check's result: never read by this rule, so still waiting.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_source_other_than_a_card_is_not_read_by_the_rule(): void {
+		$order = self::created( 'POSSIBLE' );
+
+		$order['payment_source'] = array( 'paypal' => array( 'authentication_result' => self::result( 'POSSIBLE' ) ) );
+
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $order ) );
+
+		$this->assertNull( $this->gateway->query( self::query() ) );
+		$this->assertSame( array( 'GET ' . self::orderPath() ), $this->context->paypal->sent() );
 	}
 
 	/**
@@ -158,6 +215,24 @@ final class CardFieldsQueryTest extends GatewayTestCase {
 		}
 
 		return $order;
+	}
+
+	/**
+	 * Returns a 3-D Secure check's result as PayPal writes it on a card once the shopper passed the challenge.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $shift The liability shift.
+	 * @return array<string, mixed> The result.
+	 */
+	private static function result( string $shift ): array {
+		return array(
+			'liability_shift' => $shift,
+			'three_d_secure'  => array(
+				'enrollment_status'     => 'Y',
+				'authentication_status' => 'Y',
+			),
+		);
 	}
 
 	/**

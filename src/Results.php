@@ -132,13 +132,19 @@ final class Results {
 	}
 
 	/**
-	 * Tells whether the shopper finished paying by card on an order PayPal still lists as `CREATED`: the card is on the order, and the bank's 3-D Secure check came back.
+	 * Tells whether the shopper finished paying by card on an order PayPal still lists as `CREATED`: the bank's 3-D Secure check came back, complete.
 	 *
 	 * PayPal leaves an order of its card fields `CREATED` once the shopper passed the bank's
 	 * challenge, with the check's result on the card; one approved with no check reads `APPROVED`.
 	 * While the challenge is still on the shopper's screen the order already holds the card's
-	 * details, but no result: the shopper has not finished, and the order is still waiting. So the
-	 * order is finished only when its card has its details and a liability shift PayPal documents.
+	 * details, but no result: the shopper has not finished, and the order is still waiting.
+	 *
+	 * The rule: the order is finished only when its payment source is a card (`payment_source.card`;
+	 * no other source is read) whose `authentication_result` names a liability shift PayPal
+	 * documents (YES, POSSIBLE, NO or UNKNOWN) and whose `three_d_secure.authentication_status` is
+	 * not `C`, PayPal's "challenge required", which its 3-D Secure table pairs with `UNKNOWN`: a
+	 * check still waiting for the shopper. The card's own details, such as its last digits, are
+	 * optional in PayPal's answer and are not read.
 	 *
 	 * @since 0.2.0
 	 *
@@ -146,8 +152,10 @@ final class Results {
 	 * @return bool True when the shopper finished, and the order may be authorized.
 	 */
 	public static function cardFinished( array $order ): bool {
-		return null !== Fields::text( $order, 'payment_source', 'card', 'last_digits' )
-			&& null !== PayPalCodes::liabilityShift( Fields::text( $order, 'payment_source', 'card', 'authentication_result', 'liability_shift' ) );
+		$result = Fields::map( $order, 'payment_source', 'card', 'authentication_result' );
+
+		return null !== PayPalCodes::liabilityShift( Fields::text( $result, 'liability_shift' ) )
+			&& 'C' !== Fields::text( $result, 'three_d_secure', 'authentication_status' );
 	}
 
 	/**
