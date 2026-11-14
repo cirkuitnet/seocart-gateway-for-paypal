@@ -54,7 +54,7 @@ final class Fixtures {
 	 *
 	 * @var string
 	 */
-	public const AUTHORIZATION_ID = '0VF52814937998046';
+	public const AUTHORIZATION_ID = '3KT82946NV0517268';
 
 	/**
 	 * The capture of the fixtures.
@@ -72,7 +72,7 @@ final class Fixtures {
 	 *
 	 * @var string
 	 */
-	public const REFUND_ID = '1JU08902781691411';
+	public const REFUND_ID = '7WX40152HD3896417';
 
 	/**
 	 * The debug id of the error fixtures.

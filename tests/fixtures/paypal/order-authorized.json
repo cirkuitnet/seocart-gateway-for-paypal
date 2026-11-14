@@ -27,7 +27,7 @@
                 "authorizations": [
                     {
                         "status": "CREATED",
-                        "id": "0VF52814937998046",
+                        "id": "3KT82946NV0517268",
                         "amount": {
                             "currency_code": "USD",
                             "value": "20.00"
@@ -39,17 +39,17 @@
                         "expiration_time": "2026-12-13T12:00:00Z",
                         "links": [
                             {
-                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046",
+                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268",
                                 "rel": "self",
                                 "method": "GET"
                             },
                             {
-                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046/capture",
+                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268/capture",
                                 "rel": "capture",
                                 "method": "POST"
                             },
                             {
-                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046/void",
+                                "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268/void",
                                 "rel": "void",
                                 "method": "POST"
                             },

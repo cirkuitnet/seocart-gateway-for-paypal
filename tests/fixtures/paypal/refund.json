@@ -1,5 +1,5 @@
 {
-    "id": "1JU08902781691411",
+    "id": "7WX40152HD3896417",
     "status": "COMPLETED",
     "amount": {
         "currency_code": "USD",
@@ -27,7 +27,7 @@
     },
     "links": [
         {
-            "href": "https://api.sandbox.paypal.com/v2/payments/refunds/1JU08902781691411",
+            "href": "https://api.sandbox.paypal.com/v2/payments/refunds/7WX40152HD3896417",
             "rel": "self",
             "method": "GET"
         },

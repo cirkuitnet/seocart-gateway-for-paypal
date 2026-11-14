@@ -27,7 +27,7 @@
     "supplementary_data": {
         "related_ids": {
             "order_id": "5O190127TN364715T",
-            "authorization_id": "0VF52814937998046"
+            "authorization_id": "3KT82946NV0517268"
         }
     },
     "links": [
@@ -42,7 +42,7 @@
             "method": "POST"
         },
         {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268",
             "rel": "up",
             "method": "GET"
         }

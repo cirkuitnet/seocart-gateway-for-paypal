@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  * Owns one fact: what a usable token is. PayPal answers `POST /v1/oauth2/token` with a bearer
  * token valid for hours; the gateway keeps it in memory for the request it serves and nowhere else
  * (never an option, a transient or a log line), since it is a credential: anyone holding it can
- * move the account's money until it expires. Dumped, serialized or printed, it shows nothing of
+ * move the account's money until it expires. Dumped by var_dump() or print_r(), it shows nothing of
  * its value.
  *
  * @since 0.2.0
@@ -28,13 +28,15 @@ defined( 'ABSPATH' ) || exit;
 final class AccessToken {
 
 	/**
-	 * The shape of a token the gateway accepts: what an OAuth bearer token may hold, of a sane length.
+	 * The shape of a token the gateway accepts: printable characters without a space, of a sane length.
+	 *
+	 * PayPal's tokens are opaque; what matters is that the value can travel in a header and nothing else with it.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @var string
 	 */
-	private const SHAPE = '/^[A-Za-z0-9\-._~+\/]{16,4096}=*\z/';
+	private const SHAPE = '/^[!-~]{16,4096}\z/';
 
 	/**
 	 * Keeps the token.

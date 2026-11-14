@@ -12,6 +12,7 @@ declare( strict_types=1 );
 namespace SEOCart\GatewayForPayPal\Tests\Integration;
 
 use SEOCart\GatewayForPayPal\Gateway;
+use SEOCart\Payment\Application\CredentialState;
 use SEOCart\Contracts\Payment\Mode;
 use SEOCart\Payment\Application\Gateways;
 use SEOCart\Platform\Kernel\Kernel;
@@ -28,15 +29,17 @@ use WP_UnitTestCase;
  * place a payment is its own wrapper, never this class.
  *
  * @since 0.1.0
+ * @since 0.2.0 The gateway declares settings: unconfigured, it is registered but not offered.
  */
 final class RegistersWithSEOCartTest extends WP_UnitTestCase {
 
 	/**
-	 * Tests that the gateway is registered with its declaration, written against a contract SEOCart supports, and not offered.
+	 * Tests that the gateway is registered with its declaration, written against a contract SEOCart supports, and not offered while unconfigured.
 	 *
 	 * @since 0.1.0
+	 * @since 0.2.0 Reads the declaration SEOCart keeps; unconfigured, the gateway is not offered.
 	 */
-	public function test_seocart_registers_the_gateway_and_does_not_offer_it(): void {
+	public function test_seocart_registers_the_gateway_and_does_not_offer_it_unconfigured(): void {
 		$registry = Kernel::container()->get( Gateways::class );
 		$declared = $registry->descriptor( Gateway::ID );
 
@@ -44,11 +47,12 @@ final class RegistersWithSEOCartTest extends WP_UnitTestCase {
 		$this->assertContains( Gateway::ID, $registry->ids() );
 		$this->assertSame( Gateway::ID, $declared->id );
 		$this->assertSame( 'PayPal', $declared->label() );
-		$this->assertSame( array( Mode::Test ), $declared->modes );
+		$this->assertSame( array( Mode::Test, Mode::Live ), $declared->modes );
 		$this->assertTrue( $registry->supportsContract( $declared->contract ), "SEOCart does not support the contract {$declared->contract} this gateway is written against." );
+		$this->assertSame( CredentialState::Missing, $registry->credentials( Gateway::ID, Mode::Test ) );
 
 		foreach ( array( 'USD', 'GBP', 'EUR' ) as $code ) {
-			$this->assertNull( $registry->availableMode( Gateway::ID, Money::of( 1000, Currency::of( $code ) ), 'US', 'storefront' ), "SEOCart must not offer the gateway in {$code}." );
+			$this->assertNull( $registry->availableMode( Gateway::ID, Money::of( 1000, Currency::of( $code ) ), 'US', 'storefront' ), "SEOCart must not offer the gateway in {$code} unconfigured." );
 		}
 	}
 }
