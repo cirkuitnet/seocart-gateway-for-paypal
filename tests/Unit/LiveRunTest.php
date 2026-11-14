@@ -54,7 +54,7 @@ final class LiveRunTest extends TestCase {
 	}
 
 	/**
-	 * Tests the run list: each order with its uuid, and nothing of another shape read back.
+	 * Tests the run list: each order with its uuid, written whole even when its digits read as a card number, and nothing of another shape written or read back.
 	 *
 	 * @since 0.2.0
 	 */
@@ -68,14 +68,26 @@ final class LiveRunTest extends TestCase {
 			LiveRun::created( '5O190127TN364715T', '0199c0de-0000-7000-8000-00000000a001' );
 			file_put_contents( $file, "not an order\n4111111111111111 0199c0de-0000-7000-8000-00000000a001\n", FILE_APPEND );
 			LiveRun::created( '21P35652VJ9135157', '0199c0de-0000-7000-8000-00000000a002' );
+			// An id of PayPal's whose digits pass a card number's checksum, as the sandbox gave one: written whole, so the cleanup finds it.
+			LiveRun::created( '0TP3831016068574K', '0199c0de-0000-7000-8000-00000000a003' );
 
 			$this->assertSame(
 				array(
 					'5O190127TN364715T' => '0199c0de-0000-7000-8000-00000000a001',
 					'21P35652VJ9135157' => '0199c0de-0000-7000-8000-00000000a002',
+					'0TP3831016068574K' => '0199c0de-0000-7000-8000-00000000a003',
 				),
 				LiveRun::orders( (string) file_get_contents( $file ) )
 			);
+
+			foreach ( array( array( '41111111111111111', '0199c0de-0000-7000-8000-00000000a004' ), array( '5O190127TN364715T', 'not-a-uuid' ) ) as list( $orderId, $uuid ) ) {
+				try {
+					LiveRun::created( $orderId, $uuid );
+					$this->fail( 'The run list took what is not an order\'s id and a store uuid.' );
+				} catch ( \LogicException $refused ) {
+					$this->assertStringContainsString( 'nothing else', $refused->getMessage() );
+				}
+			}
 		} finally {
 			putenv( LiveRun::RUN_LIST );
 			unlink( $file );

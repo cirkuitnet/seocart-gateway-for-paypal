@@ -166,15 +166,25 @@ final class LiveRun {
 	}
 
 	/**
-	 * Adds an order the run created to the run list.
+	 * Adds an order the run created to the run list, its id written whole.
+	 *
+	 * The run list is never printed: the cleanup reads it, and names an id in what it prints only as
+	 * MessageGuard shows it. So an id is written as PayPal gave it, even one whose digits pass a
+	 * card number's checksum, as PayPal's ids may; the cleanup must find every order the run made.
 	 *
 	 * @since 0.2.0
+	 *
+	 * @throws \LogicException When the id is not an order's (17 capitals and digits, a letter among them), or the uuid not a store uuid.
 	 *
 	 * @param string $orderId    The order's id.
 	 * @param string $intentUuid The store uuid it was created for.
 	 */
 	public static function created( string $orderId, string $intentUuid ): void {
-		self::append( self::RUN_LIST, MessageGuard::say( "%s %s\n", $orderId, $intentUuid ) );
+		if ( 1 !== preg_match( '/^(?=[0-9]*[A-Z])[A-Z0-9]{17}$/D', $orderId ) || 1 !== preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $intentUuid ) ) {
+			throw new \LogicException( 'The run list holds an order\'s id and a store uuid, and nothing else.' );
+		}
+
+		self::append( self::RUN_LIST, CleanupSelection::line( $orderId, $intentUuid ) );
 	}
 
 	/**
