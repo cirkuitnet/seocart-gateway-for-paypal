@@ -649,8 +649,10 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Asks where a payment stands, by its order, and authorizes the order once the shopper approved it.
 	 *
-	 * An order still waiting for the shopper is no answer yet. An approved order holds no money
-	 * until it is authorized: its amount must be the intent's and the liability policy allow it,
+	 * An order still waiting for the shopper is no answer yet, as is an order of PayPal's card
+	 * fields whose shopper is still answering the bank's challenge. An approved order, or one of the
+	 * card fields whose shopper passed the challenge, holds no money until it is authorized: its
+	 * amount must be the intent's and the liability policy allow it,
 	 * then the order is authorized under its own PayPal-Request-Id, so two queries at once make one
 	 * authorization. A completed order answers the capture of its authorization or the
 	 * authorization; a voided one, or an authorization voided or expired, is declined `expired`; an
@@ -817,6 +819,12 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Answers a query from the order as PayPal holds it.
 	 *
+	 * An order the shopper approved is resumed: one `APPROVED`, and one of PayPal's card fields
+	 * that PayPal leaves `CREATED` once the shopper passed the bank's challenge (Results::cardFinished()).
+	 * A `CREATED` order whose shopper is still typing a card or answering the challenge is still
+	 * waiting: the reconciliation job asks too, with no shopper there, and must not authorize it, or
+	 * decline it for a liability shift that has not come back yet.
+	 *
 	 * @since 0.2.0
 	 *
 	 * @throws \UnexpectedValueException When the order is in a state or a shape the mapping does not know.
@@ -828,10 +836,11 @@ final class Gateway implements PaymentGateway {
 	 */
 	private function queried( PaymentQuery $query, array $order ): ?GatewayResult {
 		return match ( Results::orderStatus( $order ) ) {
-			'CREATED', 'SAVED', 'PAYER_ACTION_REQUIRED' => null,
-			'APPROVED'                                  => $this->resume( $query, $order ),
-			'VOIDED'                                    => Results::expiredOrder( $order, $query->intentUuid ),
-			default                                     => $this->settled( $query, $order ),
+			'CREATED'                        => Results::cardFinished( $order ) ? $this->resume( $query, $order ) : null,
+			'SAVED', 'PAYER_ACTION_REQUIRED' => null,
+			'APPROVED'                       => $this->resume( $query, $order ),
+			'VOIDED'                         => Results::expiredOrder( $order, $query->intentUuid ),
+			default                          => $this->settled( $query, $order ),
 		};
 	}
 

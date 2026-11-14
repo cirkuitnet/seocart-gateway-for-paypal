@@ -132,6 +132,25 @@ final class Results {
 	}
 
 	/**
+	 * Tells whether the shopper finished paying by card on an order PayPal still lists as `CREATED`: the card is on the order, and the bank's 3-D Secure check came back.
+	 *
+	 * PayPal leaves an order of its card fields `CREATED` once the shopper passed the bank's
+	 * challenge, with the check's result on the card; one approved with no check reads `APPROVED`.
+	 * While the challenge is still on the shopper's screen the order already holds the card's
+	 * details, but no result: the shopper has not finished, and the order is still waiting. So the
+	 * order is finished only when its card has its details and a liability shift PayPal documents.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $order The order, `CREATED`.
+	 * @return bool True when the shopper finished, and the order may be authorized.
+	 */
+	public static function cardFinished( array $order ): bool {
+		return null !== Fields::text( $order, 'payment_source', 'card', 'last_digits' )
+			&& null !== PayPalCodes::liabilityShift( Fields::text( $order, 'payment_source', 'card', 'authentication_result', 'liability_shift' ) );
+	}
+
+	/**
 	 * Returns the order's live authorizations: each not voided, expired or denied, so it holds the money or took it, in PayPal's order.
 	 *
 	 * The gateway authorizes an order once; PayPal may list another authorization on it, such as
