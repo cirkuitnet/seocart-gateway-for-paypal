@@ -117,6 +117,51 @@ final class CleanupSelection {
 	}
 
 	/**
+	 * Returns an authorization's id when a run on a day left it holding money: `CREATED` that day, for a store uuid.
+	 *
+	 * The clean-up of past runs (void-held.php) has no run list: it reads what PayPal holds now, and
+	 * voids only an authorization still holding money, made on the day it is given, whose
+	 * `custom_id` is a store uuid, as every order the gateway and the live tests create carries.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $authorization The authorization, as PayPal holds it.
+	 * @param string       $day           The day, `YYYY-MM-DD` in UTC, as PayPal writes its times.
+	 * @return string|null The authorization's id; null for any other.
+	 */
+	public static function heldOn( array $authorization, string $day ): ?string {
+		$id = (string) ( $authorization['id'] ?? '' );
+
+		return 'CREATED' === ( $authorization['status'] ?? null )
+			&& 1 === preg_match( self::ORDER_ID, $id )
+			&& 1 === preg_match( self::UUID, (string) ( $authorization['custom_id'] ?? '' ) )
+			&& str_starts_with( (string) ( $authorization['create_time'] ?? '' ), $day . 'T' ) ? $id : null;
+	}
+
+	/**
+	 * Returns the transactions a page of PayPal's transaction search lists for a store uuid: what the gateway's orders and the live tests made.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $page The page, as `GET /v1/reporting/transactions` answers it.
+	 * @return list<string> The transactions' ids, each once.
+	 */
+	public static function searched( array $page ): array {
+		$ids = array();
+
+		foreach ( is_array( $page['transaction_details'] ?? null ) ? $page['transaction_details'] : array() as $detail ) {
+			$info = is_array( $detail ) && is_array( $detail['transaction_info'] ?? null ) ? $detail['transaction_info'] : array();
+			$id   = (string) ( $info['transaction_id'] ?? '' );
+
+			if ( 1 === preg_match( self::ORDER_ID, $id ) && 1 === preg_match( self::UUID, (string) ( $info['custom_field'] ?? '' ) ) ) {
+				$ids[ $id ] = $id;
+			}
+		}
+
+		return array_values( $ids );
+	}
+
+	/**
 	 * Returns a run list's line: an order's id and its store uuid.
 	 *
 	 * @since 0.2.0

@@ -74,6 +74,61 @@ final class LiveCleanupSelectionTest extends TestCase {
 	}
 
 	/**
+	 * Tests the clean-up of past runs: an authorization still holding money, made that day, for a store uuid, and no other.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_past_runs_authorization_is_held_only_when_created_that_day_for_a_store_uuid(): void {
+		$held = array(
+			'id'          => Fixtures::AUTHORIZATION_ID,
+			'status'      => 'CREATED',
+			'custom_id'   => Fixtures::INTENT_UUID,
+			'create_time' => '2026-11-14T11:59:59Z',
+		);
+
+		$this->assertSame( Fixtures::AUTHORIZATION_ID, CleanupSelection::heldOn( $held, '2026-11-14' ) );
+		$this->assertNull( CleanupSelection::heldOn( $held, '2026-11-13' ), 'Another day\'s is not the run\'s.' );
+		$this->assertNull( CleanupSelection::heldOn( array( 'status' => 'VOIDED' ) + $held, '2026-11-14' ) );
+		$this->assertNull( CleanupSelection::heldOn( array( 'custom_id' => 'order-1001' ) + $held, '2026-11-14' ), 'Not a store uuid: not the gateway\'s.' );
+		$this->assertNull( CleanupSelection::heldOn( array( 'id' => '4111111111111111' ) + $held, '2026-11-14' ) );
+	}
+
+	/**
+	 * Tests the transactions a search lists: those for a store uuid, each once.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_transactions_searched_are_those_for_a_store_uuid(): void {
+		$page = array(
+			'transaction_details' => array(
+				array(
+					'transaction_info' => array(
+						'transaction_id' => Fixtures::AUTHORIZATION_ID,
+						'custom_field'   => Fixtures::INTENT_UUID,
+					),
+				),
+				array(
+					'transaction_info' => array(
+						'transaction_id' => Fixtures::AUTHORIZATION_ID,
+						'custom_field'   => Fixtures::INTENT_UUID,
+					),
+				),
+				array(
+					'transaction_info' => array(
+						'transaction_id' => Fixtures::CAPTURE_ID,
+						'custom_field'   => 'order-1001',
+					),
+				),
+				array( 'transaction_info' => array( 'transaction_id' => Fixtures::REFUND_ID ) ),
+				'not a transaction',
+			),
+		);
+
+		$this->assertSame( array( Fixtures::AUTHORIZATION_ID ), CleanupSelection::searched( $page ) );
+		$this->assertSame( array(), CleanupSelection::searched( array() ) );
+	}
+
+	/**
 	 * Tests a stray id: an order whose uuid at PayPal is not the run's is never touched.
 	 *
 	 * @since 0.2.0
