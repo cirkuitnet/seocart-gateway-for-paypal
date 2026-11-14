@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 
-import { CONTROLS, outcomeWord, page, report, sdkUrl, WORDS } from './approve-card.mjs';
+import { CHALLENGE_CODE, CONTROLS, outcomeWord, page, report, sdkUrl, WORDS } from './approve-card.mjs';
 
 // Prints through report() into a string.
 function printed(outcome) {
@@ -78,4 +78,14 @@ test('the controls match the names the sandbox challenge gives its buttons', () 
 		assert.match(name, CONTROLS.fail);
 		assert.doesNotMatch(name, CONTROLS.complete);
 	}
+
+	// The challenge's other button, and the cookie notice PayPal shows over it, are never pressed.
+	for (const name of ['RESEND CODE', 'Yes, I accept', 'Close']) {
+		assert.doesNotMatch(name, CONTROLS.complete);
+		assert.doesNotMatch(name, CONTROLS.fail);
+	}
+});
+
+test('the challenge\'s code is the sandbox simulator\'s, typed into its one-time code field', () => {
+	assert.deepEqual(CHALLENGE_CODE, { field: 'input[name="otp"]', code: '1234' });
 });

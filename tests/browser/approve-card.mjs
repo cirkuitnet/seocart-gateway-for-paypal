@@ -5,7 +5,7 @@
 //     "card": { "number", "expiry" as MM/YY, "cvv", "name" } (a sandbox test card),
 //     "control": "complete" or "fail", for a 3-D Secure challenge, "browser": a browser to launch, or "" for Playwright's own }
 // Serves a page at http://127.0.0.1:<port> that loads PayPal's script with the client id and renders its card fields
-// for the order, types the card, submits it, presses the challenge's control when the bank asks, and prints exactly one
+// for the order, types the card, submits it, takes the bank's challenge when it asks (its code, or its control), and prints exactly one
 // word: approved, declined, no-fields, no-control or timeout; any other error is reduced to its name, as a message of
 // Playwright's or PayPal's can quote an address that holds a token. Nothing else is printed, and no trace, video or
 // screenshot is taken.
@@ -15,11 +15,16 @@ import { pathToFileURL } from 'node:url';
 
 // The controls of the sandbox's 3-D Secure challenge, by what the test asks for: a button's accessible name, looked for
 // in every frame, as the challenge is a frame inside PayPal's. PayPal does not document the challenge's markup, so these
-// are the one place to change when it changes.
+// and CHALLENGE_CODE are the one place to change when it changes.
 export const CONTROLS = {
 	complete: /^\s*(submit|continue|complete|authenticate|ok)\b/i,
 	fail: /^\s*(cancel|fail|decline)\b/i,
 };
+
+// The one-time code the sandbox's challenge asks for (PayPal's authentication simulator, a frame inside PayPal's), and
+// the field it is typed into. The code is entered and submitted from the keyboard: PayPal's cookie notice can cover the
+// challenge's button, and a key press needs no pointer.
+export const CHALLENGE_CODE = { field: 'input[name="otp"]', code: '1234' };
 
 // How long PayPal's script may take to render the fields, the challenge to appear, and PayPal to answer.
 const FIELDS_MS = 60_000;
@@ -128,6 +133,30 @@ async function press(browserPage, name, until) {
 	return false;
 }
 
+// Types the challenge's code where a frame asks for one, and submits it with the Enter key; false when no frame asked
+// for a code in time.
+async function enterCode(browserPage, until) {
+	while (Date.now() < until) {
+		for (const frame of browserPage.frames()) {
+			const field = frame.locator(CHALLENGE_CODE.field);
+
+			if ((await field.count().catch(() => 0)) > 0) {
+				await field.first().fill(CHALLENGE_CODE.code, { timeout: CONTROL_MS });
+				await field.first().press('Enter', { timeout: CONTROL_MS });
+				return true;
+			}
+		}
+
+		if ((await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null) {
+			return true;
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, 500));
+	}
+
+	return false;
+}
+
 // Waits for PayPal's answer to the submission for a while; null when none came in time.
 async function settled(browserPage, ms) {
 	for (const until = Date.now() + ms; Date.now() < until; ) {
@@ -187,7 +216,10 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 			return answered;
 		}
 
-		if (!(await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS))) {
+		// To complete the challenge, its code when it asks for one, otherwise its button; to fail it, its button.
+		const entered = control === 'complete' && (await enterCode(browserPage, Date.now() + CONTROL_MS));
+
+		if (!entered && !(await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS))) {
 			return 'no-control';
 		}
 
