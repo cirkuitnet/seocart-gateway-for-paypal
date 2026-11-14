@@ -32,8 +32,12 @@ use SEOCart\GatewayForPayPal\WebhookReader;
  * nothing; any other type is ignored as `unhandled_type`, the type PayPal wrote never passed on. An
  * event's id that is not a PayPal event's is malformed.
  *
- * Planted violation, shown red and removed: the approval event read as an authorization's result:
- * the approval test fails, as a delivery would move money nothing authorized.
+ * The readme asks the merchant to subscribe to exactly these events.
+ *
+ * Planted violations, each shown red and removed:
+ * - the approval event read as an authorization's result: the approval test fails, as a delivery
+ *   would move money nothing authorized;
+ * - an event left out of the readme's list: the readme test fails.
  *
  * @since 0.2.0
  */
@@ -99,6 +103,27 @@ final class WebhookReaderTest extends GatewayTestCase {
 			),
 			array_keys( WebhookReader::EVENTS )
 		);
+	}
+
+	/**
+	 * Tests that the readme asks the merchant's webhook to subscribe to exactly the events the gateway reads, each named once.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_readme_names_exactly_the_events_the_gateway_reads(): void {
+		$readme = (string) file_get_contents( dirname( __DIR__, 2 ) . '/readme.txt' );
+
+		preg_match_all( '/\b[A-Z]{3,}(?:\.[A-Z][A-Z\-]*[A-Z]){2}\b/', $readme, $named );
+
+		$events = array_keys( WebhookReader::EVENTS );
+
+		sort( $events );
+
+		$listed = $named[0];
+
+		sort( $listed );
+
+		$this->assertSame( $events, $listed, 'The readme\'s list of events to subscribe to is not the gateway\'s.' );
 	}
 
 	/**
