@@ -1,0 +1,8 @@
+{
+	"account_country": "US",
+	"client_id": "sandbox-client-id",
+	"liability_shift_policy": "require",
+	"recording-nonce": "2026-11-14.b",
+	"sca_policy": "SCA_WHEN_REQUIRED",
+	"webhook_id": "0TESTWEBHOOK00001"
+}

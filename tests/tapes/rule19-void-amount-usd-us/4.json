@@ -1,0 +1,20 @@
+{
+	"request": {
+		"body": "{}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-request-id": "019b76da-a800-7d71-8fa2-2045ea0d50a9:void",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/payments/authorizations/23V14620TA038225U/void"
+	},
+	"response": {
+		"body": "{\"id\":\"23V14620TA038225U\",\"status\":\"VOIDED\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T05:25:54-08:00\",\"create_time\":\"2026-11-14T05:25:54-08:00\",\"update_time\":\"2026-11-14T05:25:57-08:00\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/23V14620TA038225U\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 200
+	}
+}

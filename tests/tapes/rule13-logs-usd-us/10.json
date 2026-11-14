@@ -1,0 +1,21 @@
+{
+	"request": {
+		"body": "{\"intent\":\"AUTHORIZE\",\"purchase_units\":[{\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-7b9c-b227-6c1a53aeda3d\",\"description\":\"000002\"}],\"payment_source\":{\"card\":{\"vault_id\":\"5c410600ew807883n\",\"stored_credential\":{\"payment_initiator\":\"CUSTOMER\",\"payment_type\":\"ONE_TIME\",\"usage\":\"SUBSEQUENT\"}}}}",
+		"headers": {
+			"content-type": "application/json",
+			"paypal-mock-response": "{\"mock_application_codes\":\"INSTRUMENT_DECLINED\"}",
+			"paypal-request-id": "019b76da-a800-7b9c-b227-6c1a53aeda3d",
+			"prefer": "return=representation"
+		},
+		"host": "api-m.sandbox.paypal.com",
+		"method": "POST",
+		"path": "/v2/checkout/orders"
+	},
+	"response": {
+		"body": "{\n    \"name\": \"UNPROCESSABLE_ENTITY\",\n    \"details\": [\n        {\n            \"issue\": \"INSTRUMENT_DECLINED\",\n            \"description\": \"The instrument presented  was either declined by the processor or bank, or it can't be used for this payment.\"\n        }\n    ],\n    \"message\": \"The requested action could not be performed, semantically incorrect, or failed business validation.\",\n    \"debug_id\": \"70c28ae654da\",\n    \"links\": [\n        {\n            \"href\": \"https://developer.paypal.com/api/rest/reference/orders/v2/errors/#INSTRUMENT_DECLINED\",\n            \"rel\": \"information_link\",\n            \"method\": \"GET\"\n        }\n    ]\n}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 422
+	}
+}

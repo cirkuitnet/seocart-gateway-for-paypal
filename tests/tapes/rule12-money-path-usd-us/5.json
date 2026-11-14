@@ -1,0 +1,16 @@
+{
+	"request": {
+		"body": null,
+		"headers": [],
+		"host": "api-m.sandbox.paypal.com",
+		"method": "GET",
+		"path": "/v2/checkout/orders/3G355399E47109923"
+	},
+	"response": {
+		"body": "{\"id\":\"3G355399E47109923\",\"intent\":\"AUTHORIZE\",\"status\":\"COMPLETED\",\"payment_source\":{\"card\":{\"name\":\"Vaulted Test Card\",\"last_digits\":\"1881\",\"expiry\":\"2030-12\",\"brand\":\"VISA\",\"type\":\"UNKNOWN\",\"bin_details\":{}}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\",\"breakdown\":{}},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000001\",\"custom_id\":\"019b76da-a800-720b-a60c-87f9bb57fd66\",\"soft_descriptor\":\"TEST STORE\",\"payments\":{\"authorizations\":[{\"status\":\"CAPTURED\",\"id\":\"3LU76175UM789291U\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-720b-a60c-87f9bb57fd66\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"processor_response\":{\"cvv_code\":\"M\",\"response_code\":\"0000\"},\"expiration_time\":\"2026-12-13T13:24:55Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3LU76175UM789291U\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3LU76175UM789291U/capture\",\"rel\":\"capture\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3LU76175UM789291U/void\",\"rel\":\"void\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/3G355399E47109923\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T13:24:55Z\",\"update_time\":\"2026-11-14T13:24:59Z\",\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"}}],\"captures\":[{\"id\":\"3T05750676321921K\",\"status\":\"COMPLETED\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"final_capture\":true,\"disbursement_mode\":\"INSTANT\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"seller_receivable_breakdown\":{\"gross_amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"paypal_fee\":{\"currency_code\":\"USD\",\"value\":\"1.27\"},\"net_amount\":{\"currency_code\":\"USD\",\"value\":\"28.73\"}},\"custom_id\":\"019b76da-a800-720b-a60c-87f9bb57fd66\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/3T05750676321921K\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/captures/3T05750676321921K/refund\",\"rel\":\"refund\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3LU76175UM789291U\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T13:24:59Z\",\"update_time\":\"2026-11-14T13:24:59Z\",\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"},\"processor_response\":{\"cvv_code\":\"M\",\"response_code\":\"0000\"}}]}}],\"create_time\":\"2026-11-14T13:24:55Z\",\"update_time\":\"2026-11-14T13:24:59Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/3G355399E47109923\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 200
+	}
+}

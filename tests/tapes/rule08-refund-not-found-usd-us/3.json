@@ -1,0 +1,16 @@
+{
+	"request": {
+		"body": null,
+		"headers": [],
+		"host": "api-m.sandbox.paypal.com",
+		"method": "GET",
+		"path": "/v2/checkout/orders/8H020560LJ879051B"
+	},
+	"response": {
+		"body": "{\"id\":\"8H020560LJ879051B\",\"intent\":\"AUTHORIZE\",\"status\":\"COMPLETED\",\"payment_source\":{\"card\":{\"name\":\"Vaulted Test Card\",\"last_digits\":\"1881\",\"expiry\":\"2030-12\",\"brand\":\"VISA\",\"type\":\"UNKNOWN\",\"bin_details\":{}}},\"purchase_units\":[{\"reference_id\":\"default\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\",\"breakdown\":{}},\"payee\":{\"email_address\":\"sb-jithq30712756@business.example.com\",\"merchant_id\":\"DWK74GHRYW4JN\"},\"description\":\"000003\",\"custom_id\":\"019b76da-a800-748d-9081-0f6f595e5c16\",\"soft_descriptor\":\"TEST STORE\",\"payments\":{\"authorizations\":[{\"status\":\"CREATED\",\"id\":\"1JR38610XN8350103\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"30.00\"},\"custom_id\":\"019b76da-a800-748d-9081-0f6f595e5c16\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"processor_response\":{\"cvv_code\":\"M\",\"response_code\":\"0000\"},\"expiration_time\":\"2026-12-13T13:24:35Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/1JR38610XN8350103\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/1JR38610XN8350103/capture\",\"rel\":\"capture\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/1JR38610XN8350103/void\",\"rel\":\"void\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/8H020560LJ879051B\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T13:24:35Z\",\"update_time\":\"2026-11-14T13:24:35Z\",\"network_transaction_reference\":{\"id\":\"{{secret:network_reference}}\",\"network\":\"VISA\"}}]}}],\"create_time\":\"2026-11-14T13:24:35Z\",\"update_time\":\"2026-11-14T13:24:35Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/8H020560LJ879051B\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+		"headers": {
+			"content-type": "application/json"
+		},
+		"status": 200
+	}
+}

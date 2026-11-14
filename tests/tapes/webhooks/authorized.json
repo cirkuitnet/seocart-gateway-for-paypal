@@ -1,0 +1,13 @@
+{
+	"body": "{\"id\":\"WH-4TB3VGD2N552LCWJF-HG2D5WKNDUXB692SG\",\"event_version\":\"1.0\",\"create_time\":\"2026-11-14T13:09:14.000Z\",\"resource_type\":\"authorization\",\"resource_version\":\"2.0\",\"event_type\":\"PAYMENT.AUTHORIZATION.CREATED\",\"summary\":\"A test event of the type PAYMENT.AUTHORIZATION.CREATED.\",\"resource\":{\"status\":\"CREATED\",\"id\":\"3KT82946NV0517268\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"20.00\"},\"custom_id\":\"0199c0de-0000-7000-8000-00000000c001\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T12:00:00Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268/capture\",\"rel\":\"capture\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/3KT82946NV0517268/void\",\"rel\":\"void\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/5O190127TN364715T\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T11:59:59Z\",\"update_time\":\"2026-11-14T11:59:59Z\",\"supplementary_data\":{\"related_ids\":{\"order_id\":\"5O190127TN364715T\"}}},\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v1/notifications/webhooks-events/WH-4TB3VGD2N552LCWJF-HG2D5WKNDUXB692SG\",\"rel\":\"self\",\"method\":\"GET\"}]}",
+	"headers": {
+		"content-type": "application/json",
+		"paypal-auth-algo": "SHA256withRSA",
+		"paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test-0001",
+		"paypal-transmission-id": "338d0f27-e820-4ed0-8b1a-44c42be1dc01",
+		"paypal-transmission-sig": "H3UtlhpU/TU5e7j+DDSmkLnGsKo5cPPwrdgznssiss6kP7jT7fu2+oCT/nRHWv1e+EGEG5TMmY7nGJnBpN1SkEmiCnsK/lU0C8X28qNAHKy4Dez9DK+13QgW53xNd7WmY33qmbWzF4cfcFvbADIioOJDycjf2MphKJ4+ggMnvS3iAoyBP/oDgf1FiCErG3OO5OoSuiBC038JWuIO39TfaxpTNvyVSRc1zNmBrUNkRdevOMK6Btf/SxOPY2hdN4Tt42yrX65CcQyYavwedzNe0pk3onmUgmhi/RviS5UiPZplT0K45g/p/zPm248K3gLyW2lMHRo6FSXUGJypjHMimg==",
+		"paypal-transmission-time": "2026-11-14T13:09:14Z"
+	},
+	"mode": "test",
+	"signed_at": "2026-11-14T13:09:14+00:00"
+}
