@@ -57,6 +57,19 @@ final class Fields {
 	}
 
 	/**
+	 * Tells whether a field is present and an object, an empty one included.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $data    The decoded object.
+	 * @param string       ...$path The keys from the object down to the field.
+	 * @return bool True when the field is an object.
+	 */
+	public static function isObject( array $data, string ...$path ): bool {
+		return is_array( self::at( $data, $path ) );
+	}
+
+	/**
 	 * Returns a list of objects, such as an order's authorizations or its links.
 	 *
 	 * @since 0.2.0

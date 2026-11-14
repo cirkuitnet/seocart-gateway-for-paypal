@@ -918,10 +918,10 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Tells whether the liability policy lets an approved order be authorized.
 	 *
-	 * A payment by PayPal, and a card PayPal did not ask the bank to check, are authorized. A card
-	 * whose 3-D Secure check moved the liability to the bank (`YES`, `POSSIBLE`) is too; otherwise
-	 * (`NO`, `UNKNOWN`, or no result for a checked card) the policy `require` declines it and
-	 * `accept` authorizes it, logging the result's word.
+	 * A payment by PayPal, and a card that carries no 3-D Secure result at all, are authorized. A
+	 * card whose result moved the liability to the bank (`YES`, `POSSIBLE`) is too; otherwise (`NO`,
+	 * `UNKNOWN`, or a result that names no liability shift, as one PayPal ran without the bank) the
+	 * policy `require` declines it and `accept` authorizes it, logging the result's word.
 	 *
 	 * @since 0.2.0
 	 *
@@ -931,9 +931,9 @@ final class Gateway implements PaymentGateway {
 	 * @return bool True when the order may be authorized.
 	 */
 	private function liabilityAllows( Mode $mode, array $order, string $intentUuid ): bool {
-		$checked = Fields::map( $order, 'payment_source', 'card', 'authentication_result' );
+		$checked = Results::cardCheck( $order );
 
-		if ( array() === $checked ) {
+		if ( null === $checked ) {
 			return true;
 		}
 

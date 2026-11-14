@@ -23,13 +23,15 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * PayPal's sandbox, read at each step of a card payment made in its card fields with 3-D Secure,
  * shows: before the card, the order is `CREATED` with no card on it; while the bank's challenge is
  * on the shopper's screen, `CREATED` with the card's details and no check result; once the shopper
- * passed it, still `CREATED`, with the check's result and its liability shift. An order approved
- * with no check reads `APPROVED`. So a `CREATED` order is resumed only once its card source carries
- * a check's result with a documented liability shift and an authentication status other than `C`
- * (challenge required), whether or not the card's details are there: before that, the
+ * passed it, still `CREATED`, with the check's result and its liability shift; a card PayPal passed
+ * with no check by the bank, `CREATED` with a result naming no liability shift. An order approved
+ * with no check at all reads `APPROVED`. So a `CREATED` order is resumed once its card source
+ * carries a result (any object) whose authentication status is not `C` (challenge required),
+ * whether or not the card's details or a liability shift are there: before that, the
  * reconciliation job, which asks with no shopper there, must neither authorize it nor decline it.
  * Once resumed, it goes the way of an approved order: the amount checked, then the liability
- * policy, then the authorization under `{uuid}:authorize`.
+ * policy (a result naming no shift is declined under `require`), then the authorization under
+ * `{uuid}:authorize`.
  *
  * Planted violations, each shown red and removed:
  * - any card on a `CREATED` order taken as finished: the mid-challenge test fails, as the order is
@@ -61,27 +63,49 @@ final class CardFieldsQueryTest extends GatewayTestCase {
 	}
 
 	/**
-	 * Tests an order whose shopper is still answering the bank's challenge, as the sandbox shows it (the card on it, no check result), and one whose result names no liability shift: still waiting under either policy, nothing authorized and nothing declined.
+	 * Tests an order whose shopper is still answering the bank's challenge, as the sandbox shows it at every moment read: the card on it, no check result. Still waiting under either policy, nothing authorized and nothing declined.
 	 *
 	 * @since 0.2.0
 	 */
 	public function test_an_order_mid_challenge_is_still_waiting_under_either_policy(): void {
-		$partial = self::created( null );
-
-		$partial['payment_source']['card']['authentication_result'] = array( 'three_d_secure' => array( 'enrollment_status' => 'Y' ) );
-
 		foreach ( array( 'require', 'accept' ) as $policy ) {
 			$this->context->settings['test']['liability_shift_policy'] = $policy;
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( self::created( null ) ) );
 
-			foreach ( array( self::created( null ), $partial ) as $order ) {
-				$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $order ) );
-
-				$this->assertNull( $this->gateway->query( self::query() ), "Under {$policy}, the shopper has not finished." );
-			}
+			$this->assertNull( $this->gateway->query( self::query() ), "Under {$policy}, the shopper has not finished." );
 		}
 
-		$this->assertSame( array_fill( 0, 4, 'GET ' . self::orderPath() ), $this->context->paypal->sent(), 'Nothing is authorized while the shopper answers the bank.' );
+		$this->assertSame( array_fill( 0, 2, 'GET ' . self::orderPath() ), $this->context->paypal->sent(), 'Nothing is authorized while the shopper answers the bank.' );
 		$this->assertNotContains( 'paypal.declined', $this->context->log->codes() );
+	}
+
+	/**
+	 * Tests a finished order whose result names no liability shift, as when PayPal passed the card with no check by the bank (`{"data_only": false}`, seen in the sandbox): declined under `require` with nothing sent, authorized under `accept`.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_finished_result_without_a_liability_shift_follows_the_policy(): void {
+		$shapes = array( array( 'data_only' => false ), array( 'three_d_secure' => array( 'enrollment_status' => 'Y' ) ) );
+
+		foreach ( $shapes as $result ) {
+			$this->context->paypal->requests = array();
+
+			$order = self::created( null );
+
+			$order['payment_source']['card']['authentication_result'] = $result;
+
+			$this->context->settings['test']['liability_shift_policy'] = 'require';
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $order ) );
+
+			$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Declined, Fixtures::ORDER_ID, 'liability_shift_not_possible' );
+			$this->assertNotContains( 'POST ' . self::orderPath( '/authorize' ), $this->context->paypal->sent(), 'Under require, nothing is authorized.' );
+
+			$this->context->settings['test']['liability_shift_policy'] = 'accept';
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $order ) );
+			$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 201, Fixtures::text( 'order-authorized' ) );
+
+			$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Approved, Fixtures::AUTHORIZATION_ID );
+		}
 	}
 
 	/**

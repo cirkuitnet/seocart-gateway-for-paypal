@@ -132,30 +132,42 @@ final class Results {
 	}
 
 	/**
-	 * Tells whether the shopper finished paying by card on an order PayPal still lists as `CREATED`: the bank's 3-D Secure check came back, complete.
+	 * Tells whether the shopper finished paying by card on an order PayPal still lists as `CREATED`: the card fields handed back a 3-D Secure result.
 	 *
-	 * PayPal leaves an order of its card fields `CREATED` once the shopper passed the bank's
-	 * challenge, with the check's result on the card; one approved with no check reads `APPROVED`.
-	 * While the challenge is still on the shopper's screen the order already holds the card's
-	 * details, but no result: the shopper has not finished, and the order is still waiting.
+	 * PayPal leaves an order of its card fields `CREATED` once the shopper is done with them, with a
+	 * result on the card: the bank's check after a challenge, or one PayPal ran without the bank
+	 * (a result such as `{"data_only": false}`, with no liability shift). One approved with no check
+	 * at all reads `APPROVED`. While the challenge is on the shopper's screen the order holds the
+	 * card's details and no result: the shopper has not finished, and the order is still waiting.
 	 *
-	 * The rule: the order is finished only when its payment source is a card (`payment_source.card`;
-	 * no other source is read) whose `authentication_result` names a liability shift PayPal
-	 * documents (YES, POSSIBLE, NO or UNKNOWN) and whose `three_d_secure.authentication_status` is
-	 * not `C`, PayPal's "challenge required", which its 3-D Secure table pairs with `UNKNOWN`: a
-	 * check still waiting for the shopper. The card's own details, such as its last digits, are
-	 * optional in PayPal's answer and are not read.
+	 * The rule: the order is finished when its payment source is a card (`payment_source.card`; no
+	 * other source is read) that carries an `authentication_result` (the field present, an object)
+	 * whose `three_d_secure.authentication_status` is not `C`, PayPal's "challenge required": a
+	 * check still waiting for the shopper. Nothing else is required: not the card's details, which
+	 * PayPal may leave out, and not a liability shift, which the liability policy then judges
+	 * (Gateway::liabilityAllows()).
 	 *
 	 * @since 0.2.0
 	 *
 	 * @param array<mixed> $order The order, `CREATED`.
-	 * @return bool True when the shopper finished, and the order may be authorized.
+	 * @return bool True when the shopper finished, and the order may be resumed.
 	 */
 	public static function cardFinished( array $order ): bool {
-		$result = Fields::map( $order, 'payment_source', 'card', 'authentication_result' );
+		$check = self::cardCheck( $order );
 
-		return null !== PayPalCodes::liabilityShift( Fields::text( $result, 'liability_shift' ) )
-			&& 'C' !== Fields::text( $result, 'three_d_secure', 'authentication_status' );
+		return null !== $check && 'C' !== Fields::text( $check, 'three_d_secure', 'authentication_status' );
+	}
+
+	/**
+	 * Returns the 3-D Secure result a card payment source carries, an empty one included.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $order The order.
+	 * @return array<mixed>|null The result; null when the payment source is not a card, or the card carries none.
+	 */
+	public static function cardCheck( array $order ): ?array {
+		return Fields::isObject( $order, 'payment_source', 'card', 'authentication_result' ) ? Fields::map( $order, 'payment_source', 'card', 'authentication_result' ) : null;
 	}
 
 	/**
