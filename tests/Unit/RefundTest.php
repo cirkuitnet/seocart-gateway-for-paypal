@@ -22,8 +22,9 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
 /**
  * A refund reads the order for the one capture of its authorization, then refunds the amount asked,
  * always sent, with the refund's uuid as its `custom_id` and its PayPal-Request-Id; with no such
- * capture, or several, it refunds nothing. A refund PayPal completed or is giving is approved, one
- * that failed or was cancelled declined, and PayPal's refusals declined with their issue.
+ * capture, or several, it refunds nothing. A refund PayPal completed is approved, one it is still
+ * giving back no answer yet (it may still fail), one that failed or was cancelled declined, and
+ * PayPal's refusals declined with their issue.
  * queryRefund() finds the refund among those PayPal lists on the order by its `custom_id`; an
  * order with no such refund is no answer, never a refund made up, and never `not_found`, as PayPal
  * cannot be searched by the refund's uuid.
@@ -31,7 +32,8 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * Planted violations, each shown red and removed:
  * - the refund sent without `custom_id`: the body test fails;
  * - queryRefund() answering the order's first refund whatever its uuid: the never-made test fails;
- * - the first of several captures refunded: the one-capture test fails.
+ * - the first of several captures refunded: the one-capture test fails;
+ * - a pending refund mapped as approved: the pending test fails.
  *
  * @since 0.2.0
  */
@@ -79,19 +81,7 @@ final class RefundTest extends GatewayTestCase {
 	 */
 	public function test_each_status_and_refusal_maps_to_one_result(): void {
 		$answers = array(
-			array(
-				201,
-				Fixtures::with(
-					'refund',
-					array(
-						'status'         => 'PENDING',
-						'status_details' => array( 'reason' => 'ECHECK' ),
-					)
-				),
-				Outcome::Approved,
-				Fixtures::REFUND_ID,
-				null,
-			),
+			array( 201, Fixtures::text( 'refund' ), Outcome::Approved, Fixtures::REFUND_ID, null ),
 			array( 201, Fixtures::with( 'refund', array( 'status' => 'FAILED' ) ), Outcome::Declined, Fixtures::REFUND_ID, 'declined' ),
 			array( 201, Fixtures::with( 'refund', array( 'status' => 'CANCELLED' ) ), Outcome::Declined, Fixtures::REFUND_ID, 'declined' ),
 			array( 422, Fixtures::issue( 'CAPTURE_FULLY_REFUNDED' ), Outcome::Declined, Fixtures::DEBUG_ID, 'capture_fully_refunded' ),
@@ -106,6 +96,31 @@ final class RefundTest extends GatewayTestCase {
 
 			$this->assertResult( $this->gateway->refund( self::refund() ), $outcome, $objectId, $code );
 		}
+	}
+
+	/**
+	 * Tests a refund PayPal is still giving back: no answer from refund() or queryRefund(), as it may still fail, its reason logged; once PayPal completed it, approved.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_pending_refund_is_no_answer_until_paypal_completes_it(): void {
+		$pending = array(
+			'status'         => 'PENDING',
+			'status_details' => array( 'reason' => 'ECHECK' ),
+		) + Fixtures::object( 'refund' );
+
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::orderCaptured() );
+		$this->context->paypal->answer( 'POST', self::refundPath(), 201, Fixtures::encode( $pending ) );
+
+		$this->unavailable( fn() => $this->gateway->refund( self::refund() ) );
+		$this->assertSame( array( 'refund', 'ECHECK' ), array( $this->context->log->contextOf( 'paypal.refund_pending' )['operation'] ?? null, $this->context->log->contextOf( 'paypal.refund_pending' )['reason'] ?? null ) );
+		$this->assertNotContains( 'paypal.declined', $this->context->log->codes() );
+
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::orderCaptured( array( $pending ) ) );
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::orderCaptured( array( Fixtures::object( 'refund' ) ) ) );
+
+		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'Still pending: PayPal may yet fail it.' );
+		$this->assertResult( $this->gateway->queryRefund( self::refund() ), Outcome::Approved, Fixtures::REFUND_ID );
 	}
 
 	/**

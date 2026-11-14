@@ -225,7 +225,10 @@ final class Results {
 	}
 
 	/**
-	 * Maps a refund: approved while PayPal is giving the money back or has, declined once it failed or was cancelled.
+	 * Maps a refund: approved once PayPal gave the money back, declined once it failed or was cancelled.
+	 *
+	 * A refund PayPal is still giving back is no answer yet: it may still fail, which PayPal reports
+	 * with an event of its own (PAYMENT.REFUND.FAILED).
 	 *
 	 * @since 0.2.0
 	 *
@@ -234,16 +237,17 @@ final class Results {
 	 * @param array<mixed> $refund     The refund.
 	 * @param string       $intentUuid The intent it is for; empty when only the order is known, as in a webhook.
 	 * @param string|null  $orderId    The order it belongs to, when known.
-	 * @return GatewayResult The result, named by the refund.
+	 * @return GatewayResult|null The result, named by the refund; null while PayPal is still giving it back.
 	 */
-	public static function refund( array $refund, string $intentUuid, ?string $orderId ): GatewayResult {
+	public static function refund( array $refund, string $intentUuid, ?string $orderId ): ?GatewayResult {
 		$amount = Amounts::money( Fields::map( $refund, 'amount' ) );
 		$id     = self::idOf( $refund, 'A refund without an id.' );
 
 		return match ( Fields::text( $refund, 'status' ) ) {
-			'COMPLETED', 'PENDING' => self::result( Operation::Refund, Outcome::Approved, $intentUuid, $amount, $id, $orderId ),
-			'CANCELLED', 'FAILED'  => self::result( Operation::Refund, Outcome::Declined, $intentUuid, $amount, $id, $orderId, self::reasonOf( $refund ) ),
-			default                => throw new \UnexpectedValueException( 'A PayPal refund in a state the adapter does not know.' ),
+			'COMPLETED'           => self::result( Operation::Refund, Outcome::Approved, $intentUuid, $amount, $id, $orderId ),
+			'PENDING'             => null,
+			'CANCELLED', 'FAILED' => self::result( Operation::Refund, Outcome::Declined, $intentUuid, $amount, $id, $orderId, self::reasonOf( $refund ) ),
+			default               => throw new \UnexpectedValueException( 'A PayPal refund in a state the adapter does not know.' ),
 		};
 	}
 

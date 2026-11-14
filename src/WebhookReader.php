@@ -35,7 +35,9 @@ use SEOCart\Contracts\Payment\WebhookReading;
  * another integration on the same PayPal account and is ignored. A refund carries the refund's
  * own uuid as its `custom_id` when SEOCart asked for it, and names its order, which SEOCart
  * resolves; one without SEOCart's uuid, such as a refund made in PayPal's dashboard or money
- * PayPal reversed, is a result SEOCart keeps for a person. An approved order is ignored, naming
+ * PayPal reversed, is a result SEOCart keeps for a person. A refund PayPal is still giving back is
+ * ignored until it completes (PAYMENT.CAPTURE.REFUNDED) or fails (PAYMENT.REFUND.FAILED, the
+ * refund's decline); a capture denied is that capture's decline. An approved order is ignored, naming
  * it: the order holds no money until the status query that follows authorizes it, and a delivery
  * never moves money. A dispute is ignored with SEOCart's own reason (WebhookReading::DISPUTE) and
  * no ids, as it names a capture, not an order.
@@ -95,6 +97,15 @@ final class WebhookReader {
 	public const CAPTURE_PENDING = 'capture_pending';
 
 	/**
+	 * Why a refund PayPal is still giving back is ignored: whether it completes or fails follows.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	public const REFUND_PENDING = 'refund_pending';
+
+	/**
 	 * Why a reversed approval is ignored: nothing was authorized on it.
 	 *
 	 * @since 0.2.0
@@ -149,6 +160,15 @@ final class WebhookReader {
 	private const REFUND = 'refund';
 
 	/**
+	 * The reading of a refund PayPal is still giving back.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private const PENDING_REFUND = 'pending_refund';
+
+	/**
 	 * The reading of money PayPal gave back by itself: a refund SEOCart never asked for.
 	 *
 	 * @since 0.2.0
@@ -196,8 +216,11 @@ final class WebhookReader {
 		'PAYMENT.AUTHORIZATION.VOIDED'       => self::VOID,
 		'PAYMENT.CAPTURE.COMPLETED'          => self::CAPTURE,
 		'PAYMENT.CAPTURE.DECLINED'           => self::CAPTURE,
+		'PAYMENT.CAPTURE.DENIED'             => self::CAPTURE,
 		'PAYMENT.CAPTURE.PENDING'            => self::PENDING_CAPTURE,
 		'PAYMENT.CAPTURE.REFUNDED'           => self::REFUND,
+		'PAYMENT.REFUND.PENDING'             => self::PENDING_REFUND,
+		'PAYMENT.REFUND.FAILED'              => self::REFUND,
 		'PAYMENT.CAPTURE.REVERSED'           => self::REVERSAL,
 		'CHECKOUT.ORDER.APPROVED'            => self::APPROVAL,
 		'CHECKOUT.PAYMENT-APPROVAL.REVERSED' => self::REVERSED_APPROVAL,
@@ -295,6 +318,7 @@ final class WebhookReader {
 			self::DISPUTE           => WebhookReading::ignored( $id, $type, WebhookReading::DISPUTE, $at ),
 			self::REVERSED_APPROVAL => WebhookReading::ignored( $id, $type, self::APPROVAL_REVERSED, $at ),
 			self::PENDING_CAPTURE   => WebhookReading::ignored( $id, $type, self::CAPTURE_PENDING, $at ),
+			self::PENDING_REFUND    => WebhookReading::ignored( $id, $type, self::REFUND_PENDING, $at ),
 			self::APPROVAL          => WebhookReading::ignored( $id, $type, self::AWAITING_AUTHORIZATION, $at, self::uuid( Fields::text( Results::purchaseUnit( $resource ), 'custom_id' ) ), PayPalCodes::id( Fields::text( $resource, 'id' ) ) ),
 			default                 => null,
 		};
@@ -304,7 +328,9 @@ final class WebhookReader {
 		}
 
 		if ( self::REFUND === $kind || self::REVERSAL === $kind ) {
-			return WebhookReading::result( $id, $type, $at, Results::refund( $resource, '', $orderId ), self::REFUND === $kind ? self::uuid( Fields::text( $resource, 'custom_id' ) ) : null );
+			$refund = Results::refund( $resource, '', $orderId );
+
+			return null === $refund ? WebhookReading::ignored( $id, $type, self::REFUND_PENDING, $at ) : WebhookReading::result( $id, $type, $at, $refund, self::REFUND === $kind ? self::uuid( Fields::text( $resource, 'custom_id' ) ) : null );
 		}
 
 		$intentUuid = self::uuid( Fields::text( $resource, 'custom_id' ) );

@@ -544,12 +544,14 @@ final class Gateway implements PaymentGateway {
 	 * Gives back part or all of the captured amount, tagged with the refund's uuid so it can be found again on the order.
 	 *
 	 * The capture refunded is the one made under the order's authorization (onlyCapture()): the
-	 * store captures once, as the final capture.
+	 * store captures once, as the final capture. A refund PayPal is still giving back is no answer
+	 * yet, as it may still fail; the refund's claim stays open, and its query or PayPal's event for
+	 * it ends it.
 	 *
 	 * @since 0.1.0
 	 * @since 0.2.0 Asks PayPal.
 	 *
-	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, or the order's authorization not exactly one capture.
+	 * @throws GatewayUnavailable When PayPal gave no answer the gateway can act on, the intent has no order, the order's authorization not exactly one capture, or the refund is pending.
 	 *
 	 * @param GatewayRefund $request The intent, the amount and the refund's uuid.
 	 * @return GatewayResult PayPal's answer, not yet applied: an approval names PayPal's refund.
@@ -580,6 +582,12 @@ final class Gateway implements PaymentGateway {
 
 				$result = Results::refund( $answer->body, $request->intentUuid, $orderId );
 
+				if ( null === $result ) {
+					$this->notePendingRefund( 'refund', $answer->body, $request->intentUuid, $orderId );
+
+					throw new GatewayUnavailable( 'PayPal is still giving the refund back.' );
+				}
+
 				return Outcome::Declined === $result->outcome ? $this->declined( 'refund', $result ) : $result;
 			}
 		);
@@ -599,7 +607,7 @@ final class Gateway implements PaymentGateway {
 	 *
 	 * @param GatewayRefund $request The refund, as it was asked.
 	 * @return GatewayResult|null The refund's result; null when the intent has no order, the order lists no
-	 *                            refund under the uuid, or PayPal refused the read.
+	 *                            refund under the uuid or lists it still pending, or PayPal refused the read.
 	 */
 	public function queryRefund( GatewayRefund $request ): ?GatewayResult {
 		if ( null === $request->providerIntentId ) {
@@ -621,9 +629,17 @@ final class Gateway implements PaymentGateway {
 		}
 
 		foreach ( $refunds as $refund ) {
-			if ( Fields::text( $refund, 'custom_id' ) === $request->refundUuid ) {
-				return $this->mapped( 'query_refund', $request->amount, static fn(): GatewayResult => Results::refund( $refund, $request->intentUuid, $orderId ) );
+			if ( Fields::text( $refund, 'custom_id' ) !== $request->refundUuid ) {
+				continue;
 			}
+
+			$result = $this->mapped( 'query_refund', $request->amount, static fn(): ?GatewayResult => Results::refund( $refund, $request->intentUuid, $orderId ) );
+
+			if ( null === $result ) {
+				$this->notePendingRefund( 'query_refund', $refund, $request->intentUuid, $orderId );
+			}
+
+			return $result;
 		}
 
 		return null;
@@ -1156,6 +1172,30 @@ final class Gateway implements PaymentGateway {
 		$result = Results::capture( $capture, $intentUuid, $orderId );
 
 		return Outcome::Declined === $result->outcome ? $this->declined( 'capture', $result ) : $result;
+	}
+
+	/**
+	 * Logs a refund PayPal is still giving back: no answer yet, as it may still fail.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string       $operation  The operation.
+	 * @param array<mixed> $refund     The refund.
+	 * @param string       $intentUuid The intent.
+	 * @param string       $orderId    The order.
+	 */
+	private function notePendingRefund( string $operation, array $refund, string $intentUuid, string $orderId ): void {
+		$this->context->logger()->info(
+			'paypal.refund_pending',
+			'PayPal is still giving a refund back, so nothing was applied yet; the refund is settled once PayPal completes it or reports it failed.',
+			array(
+				'operation'          => $operation,
+				'intent_uuid'        => $intentUuid,
+				'provider_intent_id' => PayPalCodes::logged( $orderId ),
+				'provider_object_id' => PayPalCodes::logged( Fields::text( $refund, 'id' ) ),
+				'reason'             => PayPalCodes::reason( Fields::text( $refund, 'status_details', 'reason' ) ),
+			)
+		);
 	}
 
 	/**

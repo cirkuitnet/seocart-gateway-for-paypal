@@ -24,12 +24,13 @@ use SEOCart\GatewayForPayPal\Tests\Support\TestDeliveries;
 use SEOCart\GatewayForPayPal\WebhookReader;
 
 /**
- * An authorization created is its approval, voided its void; a capture completed or declined is
- * that capture; a refund is a refund result with SEOCart's uuid when the refund carries it, and a
- * reversal one without; an approved order is ignored, naming the order and its intent, since the
- * status query authorizes it; a pending authorization or capture, a reversed approval and a dispute
- * are ignored, a dispute naming nothing; any other type is ignored as `unhandled_type`, the type
- * PayPal wrote never passed on. An event's id that is not a PayPal event's is malformed.
+ * An authorization created is its approval, voided its void; a capture completed, declined or
+ * denied is that capture; a refund is a refund result with SEOCart's uuid when the refund carries
+ * it, and a reversal one without; a failed refund is the refund's decline; an approved order is
+ * ignored, naming the order and its intent, since the status query authorizes it; a pending
+ * authorization, capture or refund, a reversed approval and a dispute are ignored, a dispute naming
+ * nothing; any other type is ignored as `unhandled_type`, the type PayPal wrote never passed on. An
+ * event's id that is not a PayPal event's is malformed.
  *
  * Planted violation, shown red and removed: the approval event read as an authorization's result:
  * the approval test fails, as a delivery would move money nothing authorized.
@@ -84,8 +85,11 @@ final class WebhookReaderTest extends GatewayTestCase {
 				'PAYMENT.AUTHORIZATION.VOIDED',
 				'PAYMENT.CAPTURE.COMPLETED',
 				'PAYMENT.CAPTURE.DECLINED',
+				'PAYMENT.CAPTURE.DENIED',
 				'PAYMENT.CAPTURE.PENDING',
 				'PAYMENT.CAPTURE.REFUNDED',
+				'PAYMENT.REFUND.PENDING',
+				'PAYMENT.REFUND.FAILED',
 				'PAYMENT.CAPTURE.REVERSED',
 				'CHECKOUT.ORDER.APPROVED',
 				'CHECKOUT.PAYMENT-APPROVAL.REVERSED',
@@ -155,6 +159,31 @@ final class WebhookReaderTest extends GatewayTestCase {
 		$this->assertNull( $external->refundUuid );
 		$this->assertResult( $reversal, 'PAYMENT.CAPTURE.REVERSED', Operation::Refund, Outcome::Approved, Fixtures::REFUND_ID, '' );
 		$this->assertNull( $reversal->refundUuid, 'Money PayPal gave back was no refund SEOCart asked for.' );
+	}
+
+	/**
+	 * Tests a refund's other states and a denied capture: a refund PayPal is still giving back is ignored, whichever event reports it; a failed one is the refund's decline, with SEOCart's uuid; a denied capture is that capture's decline.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_pending_refund_is_ignored_and_a_failed_refund_or_a_denied_capture_declined(): void {
+		$pending = array(
+			'status'         => 'PENDING',
+			'status_details' => array( 'reason' => 'ECHECK' ),
+		) + Fixtures::object( 'refund' );
+		$denied  = array(
+			'custom_id' => TestDeliveries::INTENT_UUID,
+			'status'    => 'DECLINED',
+		) + Fixtures::object( 'capture' );
+
+		$this->assertIgnored( $this->event( 'PAYMENT.REFUND.PENDING', $pending ), 'PAYMENT.REFUND.PENDING', WebhookReader::REFUND_PENDING );
+		$this->assertIgnored( $this->event( 'PAYMENT.CAPTURE.REFUNDED', $pending ), 'PAYMENT.CAPTURE.REFUNDED', WebhookReader::REFUND_PENDING );
+
+		$failed = $this->event( 'PAYMENT.REFUND.FAILED', array( 'status' => 'FAILED' ) + Fixtures::object( 'refund' ) );
+
+		$this->assertResult( $failed, 'PAYMENT.REFUND.FAILED', Operation::Refund, Outcome::Declined, Fixtures::REFUND_ID, '' );
+		$this->assertSame( array( Fixtures::REFUND_UUID, 'declined' ), array( $failed->refundUuid, $failed->result?->errorCode ) );
+		$this->assertResult( $this->event( 'PAYMENT.CAPTURE.DENIED', $denied ), 'PAYMENT.CAPTURE.DENIED', Operation::Capture, Outcome::Declined, Fixtures::CAPTURE_ID );
 	}
 
 	/**
