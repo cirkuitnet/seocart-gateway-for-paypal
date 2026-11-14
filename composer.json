@@ -1,0 +1,15 @@
+{
+	"name": "cirkuitnet/seocart-gateway-for-paypal",
+	"description": "SEOCart Gateway for PayPal connects the SEOCart store plugin to PayPal.",
+	"type": "wordpress-plugin",
+	"license": "GPL-3.0-or-later",
+	"homepage": "https://github.com/cirkuitnet/seocart-gateway-for-paypal",
+	"support": {
+		"issues": "https://github.com/cirkuitnet/seocart-gateway-for-paypal/issues",
+		"source": "https://github.com/cirkuitnet/seocart-gateway-for-paypal",
+		"security": "https://github.com/cirkuitnet/seocart-gateway-for-paypal/security/policy"
+	},
+	"require": {
+		"php": ">=8.3"
+	}
+}
