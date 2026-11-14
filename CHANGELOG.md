@@ -9,6 +9,13 @@ not.
 
 ## [Unreleased]
 
+- The PayPal adapter: card and PayPal payments through PayPal Complete Payments with your own REST app, authorized
+  once the shopper approves them at PayPal or in PayPal's card fields (with 3-D Secure, and your choice of whether a
+  card whose check leaves the liability with your store is declined) and captured later in full or in part, voided,
+  refunded in full or in part, and looked up when an answer was lost; PayPal's webhook deliveries are checked on your
+  site against PayPal's signature. Test and live modes; PayPal business accounts in the United States, in USD, GBP
+  and EUR.
+
 ## [0.1.0]
 
 - The extension's starting point, generated from SEOCart's extension template. It does not do

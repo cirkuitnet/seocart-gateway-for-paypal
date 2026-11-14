@@ -7,16 +7,20 @@ What this plugin's payment gateway declares to SEOCart: the operations it suppor
 ## PayPal (`paypal`)
 
 - Written against the payment contract 0.2.0.
-- Modes: test.
-- Settings: none.
-- External services: none: it calls no external service.
+- Modes: test, live.
+- Settings: `client_id`, `client_secret` (secret), `webhook_id`, `account_country`, `sca_policy`, `liability_shift_policy`.
+- External services: PayPal at `https://api-m.paypal.com/*`; PayPal (sandbox) at `https://api-m.sandbox.paypal.com/*`; PayPal webhook certificates at `https://api.paypal.com/v1/notifications/certs/*`; PayPal webhook certificates (sandbox) at `https://api.sandbox.paypal.com/v1/notifications/certs/*`.
 
 ### Capability matrix
 
-This gateway declares nothing yet: SEOCart never offers it, and refuses every operation of it before any request.
+| Currency | Account country | `authorize` | `capture` | `partial_capture` | `multi_capture` | `void` | `refund` | `partial_refund` | `off_session` | `sca` | `query` | `query_refund` | `webhooks` |
+| -------- | --------------- | ----------- | --------- | ----------------- | --------------- | ------ | -------- | ---------------- | ------------- | ----- | ------- | -------------- | ---------- |
+| EUR      | US              | yes         | yes       | yes               | no              | yes    | yes      | yes              | no            | yes   | yes     | yes            | yes        |
+| GBP      | US              | yes         | yes       | yes               | no              | yes    | yes      | yes              | no            | yes   | yes     | yes            | yes        |
+| USD      | US              | yes         | yes       | yes               | no              | yes    | yes      | yes              | no            | yes   | yes     | yes            | yes        |
 
 ### Idempotency
 
-| Key retention | Searchable by the store's references | Search delay |
-| ------------- | ------------------------------------ | ------------ |
-| no key        | no                                   | 0 seconds    |
+| Key retention   | Searchable by the store's references | Search delay |
+| --------------- | ------------------------------------ | ------------ |
+| 3888000 seconds | yes                                  | 0 seconds    |
