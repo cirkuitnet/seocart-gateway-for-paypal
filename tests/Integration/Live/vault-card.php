@@ -85,7 +85,7 @@ $seocart_gateway_for_paypal_word = LiveRun::approveCard( $seocart_gateway_for_pa
 
 echo MessageGuard::say( "vault-card: the card fields answered %s.\n", $seocart_gateway_for_paypal_word ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 
-if ( 'approved' !== $seocart_gateway_for_paypal_word ) {
+if ( ! in_array( $seocart_gateway_for_paypal_word, array( 'approved', 'challenge-passed' ), true ) ) {
 	echo "vault-card: nothing was authorized, so nothing is held; the order lapses at PayPal.\n";
 	exit( 1 );
 }

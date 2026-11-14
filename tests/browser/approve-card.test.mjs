@@ -7,13 +7,13 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 
-import { CHALLENGE_CODE, CONTROLS, outcomeWord, page, report, sdkUrl, WORDS } from './approve-card.mjs';
+import { CHALLENGE_CODE, CONTROLS, outcomeWord, page, reasonOf, report, sdkUrl, wordFor, WORDS } from './approve-card.mjs';
 
 // Prints through report() into a string.
-function printed(outcome) {
+function printed(outcome, reason = '') {
 	let text = '';
 
-	report(outcome, (chunk) => {
+	report(outcome, reason, (chunk) => {
 		text += chunk;
 	});
 
@@ -46,13 +46,33 @@ test('a timeout prints timeout, and an error without a plain name prints Error',
 });
 
 test('each outcome prints as itself, and nothing else does', () => {
-	for (const word of ['approved', 'declined', 'no-fields', 'no-control', 'timeout']) {
+	for (const word of ['approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields', 'no-control', 'timeout']) {
 		assert.ok(WORDS.includes(word));
 		assert.equal(printed(word), `${word}\n`);
 	}
 
+	assert.equal(printed('declined'), 'Error\n', 'The fields\' own word is never printed: whether a challenge came first is.');
 	assert.equal(printed('4868719196829038'), 'Error\n');
 	assert.equal(printed('https://example.com/?token=x'), 'Error\n');
+});
+
+test('the fields\' answer is told apart by whether a challenge came before it', () => {
+	assert.deepEqual(
+		[wordFor('approved', false), wordFor('declined', false), wordFor('approved', true), wordFor('declined', true), wordFor('no-fields', false)],
+		['approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields']
+	);
+});
+
+test('a refusal prints the issue PayPal named, and never anything else of what the fields threw', () => {
+	const token = `A21AA${randomBytes(24).toString('hex')}`;
+	const thrown = `Error: UNPROCESSABLE_ENTITY {"details":[{"issue":"INSTRUMENT_DECLINED"}],"links":["https://www.sandbox.paypal.com/x?token=${token}"],"card":"4868719196829038"}`;
+
+	assert.equal(reasonOf(thrown), 'INSTRUMENT_DECLINED');
+	assert.equal(printed('refused', reasonOf(thrown)), 'refused INSTRUMENT_DECLINED\n');
+	assert.equal(reasonOf('Card fields submission failed'), '');
+	assert.equal(printed('refused', ''), 'refused\n');
+	assert.equal(printed('refused', `token=${token}`), 'refused\n', 'Only an issue\'s capitals and underscores are printed.');
+	assert.equal(printed(new Error('x'), 'INSTRUMENT_DECLINED'), 'Error\n', 'An error prints its word alone.');
 });
 
 test('the page loads the card fields of PayPal\'s script to authorize, and quotes the order where the script reads it', () => {

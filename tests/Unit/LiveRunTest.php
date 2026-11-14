@@ -95,6 +95,25 @@ final class LiveRunTest extends TestCase {
 	}
 
 	/**
+	 * Tests the card script's line: its word returned, and the issue PayPal named kept beside it, never anything else.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_card_scripts_line_is_read_as_its_word_and_the_issue_paypal_named(): void {
+		$answers = array(
+			array( 'refused INSTRUMENT_DECLINED', 'refused', 'refused INSTRUMENT_DECLINED' ),
+			array( 'challenge-passed', 'challenge-passed', 'challenge-passed' ),
+			array( 'refused token=abc', 'refused', 'refused' ),
+			array( '4868719196829038', 'Error', 'Error' ),
+			array( 'TypeError', 'TypeError', 'TypeError' ),
+		);
+
+		foreach ( $answers as list( $line, $word, $kept ) ) {
+			$this->assertSame( array( $word, $kept ), array( LiveRun::cardAnswer( $line ), LiveRun::lastCard() ), $line );
+		}
+	}
+
+	/**
 	 * Tests the uuids the live tests make.
 	 *
 	 * @since 0.2.0

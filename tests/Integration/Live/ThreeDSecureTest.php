@@ -48,7 +48,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 
 		$placed = $this->placeLive( 'card' );
 		$this->assertSame( 'requires_action', $placed['outcome'] );
-		$this->assertSame( 'approved', $this->approveInBrowser( $placed, self::STEP_UP_SUCCEEDS ), 'The card fields did not approve the order with the step-up card.' );
+		$this->assertSame( 'challenge-passed', $this->approveInBrowser( $placed, self::STEP_UP_SUCCEEDS, 'step-up' ), 'The card fields did not show the step-up card\'s challenge and approve the order after it.' );
 
 		$answer = $this->payments()->queryGateway( $this->ref( $placed['intent_uuid'] ) );
 		$this->assertNotNull( $answer, 'The resume of an approved order answered nothing.' );
@@ -71,7 +71,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		self::alwaysAskTheBank();
 
 		$required = $this->placeLive( 'card' );
-		$this->assertSame( 'approved', $this->approveInBrowser( $required, self::STEP_UP_FAILS ), 'The card fields did not hand the failed check back to the store.' );
+		$this->assertSame( 'challenge-passed', $this->approveInBrowser( $required, self::STEP_UP_FAILS, 'failed-step-up-require' ), 'The card fields did not show the challenge and hand the failed check back to the store.' );
 		$this->assertSame( 'NO', $this->liabilityShiftOf( (string) $required['paypal_order'] ), 'The failing step-up card no longer fails its check: the test proves nothing of the policy.' );
 
 		$declined = $this->payments()->queryGateway( $this->ref( $required['intent_uuid'] ) );
@@ -84,7 +84,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		GatewayKernel::alterStored( Gateway::ID, Mode::Test, Gateway::LIABILITY_POLICY, static fn(): string => Gateway::ACCEPT_ANY );
 
 		$accepted = $this->placeLive( 'card' );
-		$this->assertSame( 'approved', $this->approveInBrowser( $accepted, self::STEP_UP_FAILS ) );
+		$this->assertSame( 'challenge-passed', $this->approveInBrowser( $accepted, self::STEP_UP_FAILS, 'failed-step-up-accept' ) );
 
 		$shift = $this->liabilityShiftOf( (string) $accepted['paypal_order'] );
 		LiveRun::report( 'liability-shift', 'failed step-up ' . self::shown( $shift ) );

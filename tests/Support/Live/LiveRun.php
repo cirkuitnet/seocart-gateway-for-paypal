@@ -53,13 +53,22 @@ final class LiveRun {
 	public const BROWSER = 'SEOCART_LIVE_BROWSER';
 
 	/**
-	 * The words the card script prints.
+	 * The words the card script prints: the fields approved with no challenge or refused before any; a challenge was shown, answered, and the fields then approved or refused; or no fields, no control of the challenge, no answer.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @var list<string>
 	 */
-	public const CARD_WORDS = array( 'approved', 'declined', 'no-fields', 'no-control', 'timeout' );
+	public const CARD_WORDS = array( 'approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields', 'no-control', 'timeout' );
+
+	/**
+	 * What the card script answered last: its word, and the issue PayPal named when the fields refused.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private static string $lastCard = '';
 
 	/**
 	 * Returns a version 4 uuid, for a store reference the live tests make themselves.
@@ -123,11 +132,40 @@ final class LiveRun {
 		);
 		fclose( $pipes[0] );
 
-		$word = trim( (string) stream_get_contents( $pipes[1] ) );
+		$line = trim( (string) stream_get_contents( $pipes[1] ) );
 		fclose( $pipes[1] );
 		proc_close( $process );
 
-		return in_array( $word, self::CARD_WORDS, true ) || 1 === preg_match( '/^[A-Za-z]{1,40}$/D', $word ) ? $word : 'Error';
+		return self::cardAnswer( $line );
+	}
+
+	/**
+	 * Reads the card script's line: its word, which it returns, and the issue PayPal named, which it keeps with the word for lastCard().
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $line The line the script printed.
+	 * @return string One of CARD_WORDS, the name of the error the script met, or `Error` for anything else.
+	 */
+	public static function cardAnswer( string $line ): string {
+		$parts  = explode( ' ', $line, 2 );
+		$word   = in_array( $parts[0], self::CARD_WORDS, true ) || 1 === preg_match( '/^[A-Za-z]{1,40}$/D', $parts[0] ) ? $parts[0] : 'Error';
+		$reason = isset( $parts[1] ) && 'Error' !== $word && 1 === preg_match( '/^[A-Z]+(?:_[A-Z]+)+$/D', $parts[1] ) && strlen( $parts[1] ) <= 64 ? $parts[1] : '';
+
+		self::$lastCard = '' === $reason ? $word : $word . ' ' . $reason;
+
+		return $word;
+	}
+
+	/**
+	 * Returns what the card script answered last: its word, and the issue PayPal named when the fields refused.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return string The answer; empty before the script ran.
+	 */
+	public static function lastCard(): string {
+		return self::$lastCard;
 	}
 
 	/**

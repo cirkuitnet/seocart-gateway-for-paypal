@@ -5,10 +5,11 @@
 //     "card": { "number", "expiry" as MM/YY, "cvv", "name" } (a sandbox test card),
 //     "control": "complete" or "fail", for a 3-D Secure challenge, "browser": a browser to launch, or "" for Playwright's own }
 // Serves a page at http://127.0.0.1:<port> that loads PayPal's script with the client id and renders its card fields
-// for the order, types the card, submits it, takes the bank's challenge when it asks (its code, or its control), and prints exactly one
-// word: approved, declined, no-fields, no-control or timeout; any other error is reduced to its name, as a message of
-// Playwright's or PayPal's can quote an address that holds a token. Nothing else is printed, and no trace, video or
-// screenshot is taken.
+// for the order, types the card, submits it, takes the bank's challenge when it asks (its code, or its control), and prints
+// one line: a word of WORDS, saying what the fields answered and whether a challenge came first, followed, when the fields
+// refused, by the issue PayPal named (capitals and underscores only, such as INSTRUMENT_DECLINED). Any other error is
+// reduced to its name, as a message of Playwright's or PayPal's can quote an address that holds a token. Nothing else is
+// printed, and no trace, video or screenshot is taken.
 
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -34,8 +35,32 @@ const ANSWER_MS = 60_000;
 // How long a card without a challenge may take to be answered, before the script looks for a challenge's control.
 const CHALLENGE_WAIT_MS = 10_000;
 
-// Every word the script can print besides an error's name.
-export const WORDS = ['approved', 'declined', 'no-fields', 'no-control', 'timeout'];
+// Every word the script can print besides an error's name: the fields approved with no challenge (`approved`) or
+// refused before any (`refused`); a challenge was shown, answered, and the fields then approved (`challenge-passed`) or
+// refused (`challenge-failed`); or the fields never rendered, no control of the challenge came, or no answer did.
+export const WORDS = ['approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields', 'no-control', 'timeout'];
+
+// Returns the issue PayPal named in what the fields threw when they refused, such as INSTRUMENT_DECLINED: the last run of
+// capitals joined by underscores, which can hold no address, token or card; empty when there is none.
+export function reasonOf(text) {
+	const issues = typeof text === 'string' ? text.match(/\b[A-Z]+(?:_[A-Z]+)+\b/g) : null;
+	const issue = issues ? issues[issues.length - 1] : '';
+
+	return issue.length <= 64 ? issue : '';
+}
+
+// Returns the word for the fields' answer, by whether a challenge was answered before it.
+export function wordFor(answer, challenged) {
+	if (answer === 'approved') {
+		return challenged ? 'challenge-passed' : 'approved';
+	}
+
+	if (answer === 'declined') {
+		return challenged ? 'challenge-failed' : 'refused';
+	}
+
+	return answer;
+}
 
 // The address of PayPal's script; the client id names the sandbox.
 export const SDK = 'https://www.paypal.com/sdk/js';
@@ -51,9 +76,12 @@ export function outcomeWord(error) {
 	return /^[A-Za-z]{1,40}$/.test(name) ? name : 'Error';
 }
 
-// Prints an outcome, or an error reduced to its word, and nothing else.
-export function report(outcome, write = (text) => process.stdout.write(text)) {
-	write(`${typeof outcome === 'string' && WORDS.includes(outcome) ? outcome : outcomeWord(outcome)}\n`);
+// Prints an outcome and, for a refusal, the issue PayPal named; or an error reduced to its word; and nothing else.
+export function report(outcome, reason = '', write = (text) => process.stdout.write(text)) {
+	const word = typeof outcome === 'string' && WORDS.includes(outcome) ? outcome : outcomeWord(outcome);
+	const issue = word !== outcome || reasonOf(reason) !== reason ? '' : reason;
+
+	write(`${word}${issue ? ` ${issue}` : ''}\n`);
 }
 
 // Returns the address of PayPal's script for a client id and a currency: the card fields, for an order to authorize.
@@ -78,10 +106,15 @@ export function page(clientId, orderId, currency) {
 <div id="name"></div><div id="number"></div><div id="expiry"></div><div id="cvv"></div>
 <script>
 window.outcome = null;
+window.reason = '';
+const refused = (error) => {
+	window.reason = window.reason || String((error && (error.message || error)) || '');
+	window.outcome = window.outcome || 'declined';
+};
 const fields = paypal.CardFields({
 	createOrder: () => ${JSON.stringify(orderId)},
 	onApprove: () => { window.outcome = 'approved'; },
-	onError: () => { window.outcome = 'declined'; },
+	onError: refused,
 });
 if (!fields.isEligible()) {
 	window.outcome = 'no-fields';
@@ -92,7 +125,7 @@ if (!fields.isEligible()) {
 		fields.ExpiryField().render('#expiry'),
 		fields.CVVField().render('#cvv'),
 	]).then(() => { window.rendered = true; });
-	window.submitCard = () => fields.submit().catch(() => { window.outcome = window.outcome || 'declined'; });
+	window.submitCard = () => fields.submit().catch(refused);
 }
 </script>
 </body></html>`;
@@ -111,7 +144,8 @@ async function type(browserPage, container, value) {
 	await input.pressSequentially(value, { delay: 40 });
 }
 
-// Presses the first button of a name in any frame of the page; false when none appeared in time.
+// Presses the first button of a name in any frame of the page: `challenge` once it did, `answered` when the fields
+// answered first, null when neither came in time.
 async function press(browserPage, name, until) {
 	while (Date.now() < until) {
 		for (const frame of browserPage.frames()) {
@@ -119,22 +153,22 @@ async function press(browserPage, name, until) {
 
 			if ((await button.count().catch(() => 0)) > 0) {
 				await button.first().click({ timeout: CONTROL_MS });
-				return true;
+				return 'challenge';
 			}
 		}
 
 		if ((await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null) {
-			return true;
+			return 'answered';
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 
-	return false;
+	return null;
 }
 
-// Types the challenge's code where a frame asks for one, and submits it with the Enter key; false when no frame asked
-// for a code in time.
+// Types the challenge's code where a frame asks for one, and submits it with the Enter key: `challenge` once it did,
+// `answered` when the fields answered first, null when neither came in time.
 async function enterCode(browserPage, until) {
 	while (Date.now() < until) {
 		for (const frame of browserPage.frames()) {
@@ -143,18 +177,18 @@ async function enterCode(browserPage, until) {
 			if ((await field.count().catch(() => 0)) > 0) {
 				await field.first().fill(CHALLENGE_CODE.code, { timeout: CONTROL_MS });
 				await field.first().press('Enter', { timeout: CONTROL_MS });
-				return true;
+				return 'challenge';
 			}
 		}
 
 		if ((await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null) {
-			return true;
+			return 'answered';
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 
-	return false;
+	return null;
 }
 
 // Waits for PayPal's answer to the submission for a while; null when none came in time.
@@ -184,7 +218,8 @@ async function serve(html) {
 	return { url: `http://127.0.0.1:${server.address().port}/`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-// Opens the page, types the card, submits it, takes the bank's challenge when one comes, and waits for PayPal's answer.
+// Opens the page, types the card, submits it, takes the bank's challenge when one comes, and waits for PayPal's answer:
+// the word for it, and the issue PayPal named when the fields refused.
 async function approve({ clientId, orderId, currency, card, control, browser }) {
 	const { chromium } = await import('playwright');
 	const served = await serve(page(clientId, orderId, currency));
@@ -192,12 +227,17 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 
 	try {
 		const browserPage = await (await launched.newContext()).newPage();
+		const answer = async (challenged) => {
+			const outcome = await settled(browserPage, ANSWER_MS);
+
+			return outcome === null ? { word: 'timeout' } : { word: wordFor(outcome, challenged), reason: reasonOf(await browserPage.evaluate(() => window.reason)) };
+		};
 
 		await browserPage.goto(served.url, { waitUntil: 'load', timeout: FIELDS_MS });
 		await browserPage.waitForFunction(() => window.rendered === true || window.outcome !== null, null, { timeout: FIELDS_MS });
 
 		if ((await browserPage.evaluate(() => window.outcome)) === 'no-fields') {
-			return 'no-fields';
+			return { word: 'no-fields' };
 		}
 
 		await type(browserPage, '#name', card.name);
@@ -210,20 +250,14 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 			window.submitCard();
 		});
 
-		const answered = await settled(browserPage, CHALLENGE_WAIT_MS);
-
-		if (answered !== null) {
-			return answered;
+		if ((await settled(browserPage, CHALLENGE_WAIT_MS)) !== null) {
+			return answer(false);
 		}
 
 		// To complete the challenge, its code when it asks for one, otherwise its button; to fail it, its button.
-		const entered = control === 'complete' && (await enterCode(browserPage, Date.now() + CONTROL_MS));
+		const step = (control === 'complete' ? await enterCode(browserPage, Date.now() + CONTROL_MS) : null) ?? (await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS));
 
-		if (!entered && !(await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS))) {
-			return 'no-control';
-		}
-
-		return (await settled(browserPage, ANSWER_MS)) ?? 'timeout';
+		return step === null ? { word: 'no-control' } : answer(step === 'challenge');
 	} finally {
 		await launched.close();
 		await served.close();
@@ -256,7 +290,9 @@ async function readInput() {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 	try {
-		report(await approve(await readInput()));
+		const { word, reason } = await approve(await readInput());
+
+		report(word, word === 'refused' || word === 'challenge-failed' ? (reason ?? '') : '');
 	} catch (error) {
 		report(error);
 	}
