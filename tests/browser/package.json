@@ -1,0 +1,16 @@
+{
+	"name": "seocart-gateway-for-paypal-browser",
+	"private": true,
+	"description": "Approves a PayPal sandbox order in PayPal's card fields in a browser, for the PayPal sandbox workflow's live tests.",
+	"license": "GPL-3.0-or-later",
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"test": "node --test"
+	},
+	"dependencies": {
+		"playwright": "1.63.0"
+	}
+}
