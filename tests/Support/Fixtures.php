@@ -182,6 +182,62 @@ final class Fixtures {
 	}
 
 	/**
+	 * Returns the order fixture once its authorization was captured, with the captures given.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> ...$captures The order's captures, as PayPal lists them, such as captureOf()'s.
+	 * @return string The order, encoded.
+	 */
+	public static function orderWithCaptures( array ...$captures ): string {
+		$order = self::object( 'order-authorized' );
+
+		$order['purchase_units'][0]['payments']['authorizations'][0]['status'] = 'PARTIALLY_CAPTURED';
+		$order['purchase_units'][0]['payments']['captures']                    = $captures;
+
+		return self::encode( $order );
+	}
+
+	/**
+	 * Returns the capture fixture with another id, made under an authorization: its `up` link names it.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $id              The capture's id.
+	 * @param string $authorizationId Optional. The authorization it was made under. Default the fixtures'.
+	 * @return array<mixed> The capture.
+	 */
+	public static function captureOf( string $id, string $authorizationId = self::AUTHORIZATION_ID ): array {
+		$capture = self::object( 'capture' );
+
+		// As the order lists its captures: the link names the authorization, and no supplementary data does.
+		unset( $capture['supplementary_data'] );
+
+		$links = array(
+			array(
+				'href'   => 'https://api.sandbox.paypal.com/v2/payments/captures/' . $id,
+				'rel'    => 'self',
+				'method' => 'GET',
+			),
+			array(
+				'href'   => 'https://api.sandbox.paypal.com/v2/payments/captures/' . $id . '/refund',
+				'rel'    => 'refund',
+				'method' => 'POST',
+			),
+			array(
+				'href'   => 'https://api.sandbox.paypal.com/v2/payments/authorizations/' . $authorizationId,
+				'rel'    => 'up',
+				'method' => 'GET',
+			),
+		);
+
+		return array(
+			'id'    => $id,
+			'links' => $links,
+		) + $capture;
+	}
+
+	/**
 	 * Returns the 422 fixture with another issue.
 	 *
 	 * @since 0.2.0

@@ -81,7 +81,7 @@ final class CardDataAndSecretsTest extends GatewayTestCase {
 
 		$this->gateway->authorize( new PaymentRequest( Fixtures::INTENT_UUID, $money, 'vault:' . Fixtures::VAULT_ID, Mode::Test, '0199c0de-0000-7000-8000-00000000d001', '1001', null ) );
 		$this->gateway->authorize( new PaymentRequest( Fixtures::INTENT_UUID, $money, 'vault:' . Fixtures::VAULT_ID, Mode::Test, '0199c0de-0000-7000-8000-00000000d001', '1001', null ) );
-		$this->gateway->authorize( new PaymentRequest( Fixtures::INTENT_UUID, $money, 'card', Mode::Test, '0199c0de-0000-7000-8000-00000000d001', '1001', null ) );
+		$this->unavailable( fn() => $this->gateway->authorize( new PaymentRequest( Fixtures::INTENT_UUID, $money, 'card', Mode::Test, '0199c0de-0000-7000-8000-00000000d001', '1001', null ) ) );
 		$this->gateway->query( new PaymentQuery( Fixtures::INTENT_UUID, Fixtures::ORDER_ID, $money, Mode::Test ) );
 		$this->unavailable( fn() => $this->gateway->capture( new CaptureRequest( Fixtures::INTENT_UUID, Fixtures::ORDER_ID, $money, Mode::Test ) ) );
 		$this->unavailable( fn() => $this->gateway->void( new VoidRequest( Fixtures::INTENT_UUID, Fixtures::ORDER_ID, $money, Mode::Test, 'customer_request' ) ) );

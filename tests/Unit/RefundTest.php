@@ -20,19 +20,39 @@ use SEOCart\GatewayForPayPal\Tests\Support\Fixtures;
 use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
 
 /**
- * A refund reads the order for its capture, then refunds the amount asked, always sent, with the
- * refund's uuid as its `custom_id` and its PayPal-Request-Id. A refund PayPal completed or is giving
- * is approved, one that failed or was cancelled declined, and PayPal's refusals declined with their
- * issue. queryRefund() finds the refund among those PayPal lists on the order by its `custom_id`;
- * an order with a capture and no such refund answers `not_found`, never a refund made up.
+ * A refund reads the order for the one capture of its authorization, then refunds the amount asked,
+ * always sent, with the refund's uuid as its `custom_id` and its PayPal-Request-Id; with no such
+ * capture, or several, it refunds nothing. A refund PayPal completed or is giving is approved, one
+ * that failed or was cancelled declined, and PayPal's refusals declined with their issue.
+ * queryRefund() finds the refund among those PayPal lists on the order by its `custom_id`; an
+ * order with a capture and no such refund answers `not_found`, never a refund made up.
  *
  * Planted violations, each shown red and removed:
  * - the refund sent without `custom_id`: the body test fails;
- * - queryRefund() answering the order's first refund whatever its uuid: the not-found test fails.
+ * - queryRefund() answering the order's first refund whatever its uuid: the not-found test fails;
+ * - the first of several captures refunded: the one-capture test fails.
  *
  * @since 0.2.0
  */
 final class RefundTest extends GatewayTestCase {
+
+	/**
+	 * A capture the merchant made in PayPal's dashboard.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private const DASHBOARD_CAPTURE = '8MC58520KX7463920';
+
+	/**
+	 * An authorization other than the order's first.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private const OTHER_AUTHORIZATION = '6RV48297TS1640522';
 
 	/**
 	 * Tests a refund: the read, the request byte for byte, and the approval named by the refund.
@@ -100,6 +120,40 @@ final class RefundTest extends GatewayTestCase {
 		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::text( 'order-authorized' ) );
 		$this->unavailable( fn() => $this->gateway->refund( self::refund() ) );
 		$this->assertSame( array( 'GET ' . self::orderPath() ), $this->context->paypal->sent() );
+	}
+
+	/**
+	 * Tests the capture refunded: the one made under the order's authorization, whatever else the order holds; none or more than one is no answer, nothing sent, the count logged and no capture named.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_refund_refunds_only_the_one_capture_of_the_orders_authorization(): void {
+		$dashboard = Fixtures::captureOf( self::DASHBOARD_CAPTURE );
+		$elsewhere = Fixtures::captureOf( self::DASHBOARD_CAPTURE, self::OTHER_AUTHORIZATION );
+		$paypal    = $this->context->paypal;
+
+		$paypal->answer( 'GET', self::orderPath(), 200, Fixtures::orderWithCaptures( $elsewhere, Fixtures::captureOf( Fixtures::CAPTURE_ID ) ) );
+		$paypal->answer( 'POST', self::refundPath(), 201, Fixtures::text( 'refund' ) );
+
+		$this->assertResult( $this->gateway->refund( self::refund() ), Outcome::Approved, Fixtures::REFUND_ID );
+
+		$counts = array();
+
+		foreach ( array( Fixtures::orderWithCaptures( Fixtures::captureOf( Fixtures::CAPTURE_ID ), $dashboard ), Fixtures::orderWithCaptures( $elsewhere ), Fixtures::text( 'order-authorized' ) ) as $order ) {
+			$this->context->log->lines = array();
+			$paypal->answer( 'GET', self::orderPath(), 200, $order );
+
+			$this->unavailable( fn() => $this->gateway->refund( self::refund() ) );
+			$counts[] = $this->context->log->contextOf( 'paypal.capture_unresolved' )['captures'] ?? null;
+		}
+
+		$this->assertSame( array( 2, 0, 0 ), $counts );
+		$this->assertSame( array( 'GET ' . self::orderPath(), 'POST ' . self::refundPath(), 'GET ' . self::orderPath(), 'GET ' . self::orderPath(), 'GET ' . self::orderPath() ), $paypal->sent(), 'Nothing is refunded when the gateway would have to choose.' );
+		$this->assertStringNotContainsString( self::DASHBOARD_CAPTURE, $this->written() );
+
+		$paypal->answer( 'GET', self::orderPath(), 200, Fixtures::orderWithCaptures( $elsewhere ) );
+
+		$this->assertNull( $this->gateway->queryRefund( self::refund() ), 'No capture of the order\'s authorization, so no refund of it can be said to be missing.' );
 	}
 
 	/**

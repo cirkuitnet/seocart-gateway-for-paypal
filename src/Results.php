@@ -66,6 +66,15 @@ final class Results {
 	public const LIABILITY_NOT_SHIFTED = 'liability_shift_not_possible';
 
 	/**
+	 * The decline code of an order or an authorization whose amount or currency is not the intent's: the shopper did not approve the payment the store asked for.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	public const AMOUNT_CHANGED = 'amount_changed';
+
+	/**
 	 * The decline code when PayPal gave no reason the gateway knows.
 	 *
 	 * @since 0.2.0
@@ -127,23 +136,27 @@ final class Results {
 	}
 
 	/**
-	 * Returns the order's capture: the first that took the money, or else the first.
+	 * Returns the captures made under the order's authorization: each whose `up` link names that authorization, whatever its status.
+	 *
+	 * The link is what tells captures apart: every capture of the order carries the purchase unit's
+	 * `custom_id`, the intent's uuid, whether the store made it or the merchant did in PayPal's
+	 * dashboard. The gateway does not choose among several (Gateway::onlyCapture()).
 	 *
 	 * @since 0.2.0
 	 *
 	 * @param array<mixed> $order The order.
-	 * @return array<mixed> The capture; empty when the order has none.
+	 * @return list<array<mixed>> The captures, in PayPal's order; empty when the order has no authorization or it no capture.
 	 */
-	public static function captureOf( array $order ): array {
-		$captures = Fields::objects( self::purchaseUnit( $order ), 'payments', 'captures' );
+	public static function capturesOf( array $order ): array {
+		$authorizationId = PayPalCodes::id( Fields::text( self::authorizationOf( $order ), 'id' ) );
 
-		foreach ( $captures as $capture ) {
-			if ( in_array( Fields::text( $capture, 'status' ), array( 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED' ), true ) ) {
-				return $capture;
-			}
+		if ( null === $authorizationId ) {
+			return array();
 		}
 
-		return $captures[0] ?? array();
+		$up = '/v2/payments/authorizations/' . $authorizationId;
+
+		return array_values( array_filter( Fields::objects( self::purchaseUnit( $order ), 'payments', 'captures' ), static fn( array $capture ): bool => self::linksUpTo( $capture, $up ) ) );
 	}
 
 	/**
@@ -423,6 +436,27 @@ final class Results {
 	 */
 	public static function orderAmount( array $order ): Money {
 		return Amounts::money( Fields::map( self::purchaseUnit( $order ), 'amount' ) );
+	}
+
+	/**
+	 * Tells whether an object's `up` link names a path on a host of PayPal's: the object it was made from.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $source The object, such as a capture.
+	 * @param string       $path   The path its `up` link must name, such as an authorization's.
+	 * @return bool True when it does.
+	 */
+	private static function linksUpTo( array $source, string $path ): bool {
+		foreach ( Fields::objects( $source, 'links' ) as $link ) {
+			$href = Fields::text( $link, 'href' );
+
+			if ( 'up' === Fields::text( $link, 'rel' ) && null !== $href && self::isPayPalPage( $href ) && wp_parse_url( $href, PHP_URL_PATH ) === $path ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

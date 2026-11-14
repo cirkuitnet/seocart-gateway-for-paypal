@@ -85,6 +85,23 @@ final class Amounts {
 	}
 
 	/**
+	 * Tells whether PayPal's money object is exactly an amount: the same currency and the same minor units, compared by digits.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<mixed> $money  The money object, such as an order's or an authorization's `amount`.
+	 * @param Money        $amount The amount it must be.
+	 * @return bool True when it is; false for another amount or currency, or one the gateway cannot read.
+	 */
+	public static function matches( array $money, Money $amount ): bool {
+		try {
+			return self::money( $money )->equals( $amount );
+		} catch ( \UnexpectedValueException ) {
+			return false;
+		}
+	}
+
+	/**
 	 * Reads a decimal string as minor units: `20.00`, `20.0` and `20` as 2000 for a currency of two decimals.
 	 *
 	 * @since 0.2.0

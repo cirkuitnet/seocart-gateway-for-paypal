@@ -80,6 +80,23 @@ final class PayPalCodesTest extends TestCase {
 	}
 
 	/**
+	 * Tests the declines: each an issue the gateway knows, listed once, and no issue of the merchant's account or of a request among them.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_declines_are_known_issues_and_no_merchant_issue_is_one(): void {
+		foreach ( PayPalCodes::DECLINES as $issue ) {
+			$this->assertSame( $issue, PayPalCodes::issue( $issue ) );
+		}
+
+		foreach ( array( 'AUTH_CAPTURE_NOT_ENABLED', 'PAYEE_ACCOUNT_RESTRICTED', 'PERMISSION_DENIED', 'DECIMAL_PRECISION', 'DUPLICATE_INVOICE_ID', 'ORDER_NOT_APPROVED', 'MAX_CAPTURE_AMOUNT_EXCEEDED' ) as $issue ) {
+			$this->assertNotContains( $issue, PayPalCodes::DECLINES );
+		}
+
+		$this->assertSame( array_values( array_unique( PayPalCodes::ISSUES ) ), PayPalCodes::ISSUES, 'Each issue is listed once.' );
+	}
+
+	/**
 	 * Tests a path's segments.
 	 *
 	 * @since 0.2.0

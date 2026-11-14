@@ -95,4 +95,15 @@ final readonly class ApiAnswer {
 	public function isIssue( string ...$issues ): bool {
 		return in_array( $this->issue(), $issues, true );
 	}
+
+	/**
+	 * Tells whether the error is PayPal's final no to the request: an issue PayPalCodes::DECLINES lists.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return bool True for a decline; false for a success or any other error.
+	 */
+	public function isDecline(): bool {
+		return $this->isIssue( ...PayPalCodes::DECLINES );
+	}
 }

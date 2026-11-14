@@ -23,10 +23,11 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
 /**
  * A capture reads the order for its authorization, then captures the amount asked, always sent,
  * as the final capture, under `{uuid}:capture`; a capture PayPal is still reviewing is no answer, and
- * an authorization captured already answers its capture. A void reads the order: an authorization
- * holding money is voided under `{uuid}:void` and the approved void reports the amount asked; one
- * voided or expired already is that void again, nothing sent; an order nothing was authorized on is
- * an approved void named by the order, with nothing sent; a captured one is no answer.
+ * an authorization captured already answers its one capture, and never chooses among several. A
+ * void reads the order: an authorization holding money is voided under `{uuid}:void` and the
+ * approved void reports the amount asked; one voided or expired already is that void again, nothing
+ * sent; an order nothing was authorized on is an approved void named by the order, with nothing
+ * sent; a captured one is no answer.
  *
  * Planted violations, each shown red and removed:
  * - `final_capture` false: the capture body test fails;
@@ -36,6 +37,24 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * @since 0.2.0
  */
 final class CaptureAndVoidTest extends GatewayTestCase {
+
+	/**
+	 * A capture the merchant made in PayPal's dashboard.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private const DASHBOARD_CAPTURE = '8MC58520KX7463920';
+
+	/**
+	 * An authorization other than the order's first.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var string
+	 */
+	private const OTHER_AUTHORIZATION = '6RV48297TS1640522';
 
 	/**
 	 * Tests a capture: the read, the request byte for byte, and the approval named by the capture.
@@ -84,6 +103,38 @@ final class CaptureAndVoidTest extends GatewayTestCase {
 		$this->unavailable( fn() => $this->gateway->capture( self::captureRequest() ) );
 		$this->assertSame( 'PENDING_REVIEW', $this->context->log->contextOf( 'paypal.capture_pending' )['reason'] ?? null );
 		$this->assertResult( $this->gateway->capture( self::captureRequest() ), Operation::Capture, Outcome::Approved, 2000, Fixtures::CAPTURE_ID );
+		$this->assertTrue( $paypal->isDrained() );
+	}
+
+	/**
+	 * Tests an authorization captured already that holds no capture of its own, or more than one, as when the merchant also captured in PayPal's dashboard: the gateway chooses none, and logs the count alone.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_capture_done_already_answers_only_the_one_capture_of_the_authorization(): void {
+		$paypal = $this->context->paypal;
+		$orders = array(
+			Fixtures::orderWithCaptures( Fixtures::captureOf( Fixtures::CAPTURE_ID ), Fixtures::captureOf( self::DASHBOARD_CAPTURE ) ),
+			Fixtures::orderWithCaptures( Fixtures::captureOf( self::DASHBOARD_CAPTURE, self::OTHER_AUTHORIZATION ) ),
+			Fixtures::orderWithCaptures( Fixtures::captureOf( self::DASHBOARD_CAPTURE, self::OTHER_AUTHORIZATION ), Fixtures::captureOf( Fixtures::CAPTURE_ID ) ),
+		);
+		$counts = array();
+
+		foreach ( $orders as $order ) {
+			$paypal->answer( 'GET', self::orderPath(), 200, Fixtures::text( 'order-authorized' ) );
+			$paypal->answer( 'POST', self::capturePath(), 422, Fixtures::issue( 'AUTHORIZATION_ALREADY_CAPTURED' ) );
+			$paypal->answer( 'GET', self::orderPath(), 200, $order );
+		}
+
+		for ( $ask = 0; $ask < 2; $ask++ ) {
+			$this->context->log->lines = array();
+			$this->unavailable( fn() => $this->gateway->capture( self::captureRequest() ) );
+			$counts[] = $this->context->log->contextOf( 'paypal.capture_unresolved' )['captures'] ?? null;
+		}
+
+		$this->assertSame( array( 2, 0 ), $counts );
+		$this->assertStringNotContainsString( self::DASHBOARD_CAPTURE, $this->written(), 'No capture is named, the store\'s or another\'s.' );
+		$this->assertResult( $this->gateway->capture( self::captureRequest() ), Operation::Capture, Outcome::Approved, 2000, Fixtures::CAPTURE_ID, null );
 		$this->assertTrue( $paypal->isDrained() );
 	}
 

@@ -25,12 +25,14 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * purchase unit carries the amount, the intent's uuid as `custom_id` and the order number as its
  * description, and no invoice id. The payment source is the token's: PayPal's experience for
  * `paypal`, the 3-D Secure policy alone for `card`, the vault id and a stored credential for a
- * vaulted card. No card field is ever part of it. Each answer maps to one result.
+ * vaulted card. No card field is ever part of it. Each answer maps to one result; of PayPal's
+ * refusals, only the payer's or the card's is a decline.
  *
  * Planted violations, each shown red and removed:
  * - a card number in a `vault:` token reaching the request: the card-number test fails;
  * - a fresh uuid as the PayPal-Request-Id: the key test fails;
- * - the order's id as the authorization's object: the approval test fails.
+ * - the order's id as the authorization's object: the approval test fails;
+ * - every refusal with an issue answered as a decline: the refusal test fails.
  *
  * @since 0.2.0
  */
@@ -165,6 +167,20 @@ final class AuthorizeTest extends GatewayTestCase {
 	}
 
 	/**
+	 * Tests a vaulted card's authorization for another amount than the intent's: voided at once, and declined `amount_changed`.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_vaulted_cards_authorization_for_another_amount_is_voided_and_declined(): void {
+		$this->context->paypal->answer( 'POST', 'v2/checkout/orders', 201, Fixtures::orderWithAuthorization( 'CREATED', array( 'amount' => array( 'value' => '2.00' ) ) ) );
+		$this->context->paypal->answer( 'POST', 'v2/payments/authorizations/' . Fixtures::AUTHORIZATION_ID . '/void', 200, Fixtures::text( 'authorization-voided' ) );
+
+		$this->assertResult( $this->gateway->authorize( self::request( 'vault:' . Fixtures::VAULT_ID ) ), Outcome::Declined, 2000, Fixtures::AUTHORIZATION_ID, 'amount_changed' );
+		$this->assertSame( Fixtures::INTENT_UUID . ':amount-void', $this->headers()['PayPal-Request-Id'] );
+		$this->assertTrue( $this->context->paypal->isDrained() );
+	}
+
+	/**
 	 * Tests the sandbox's mocked decline: the mock header, and the decline named by PayPal's reference for the answer, with the issue as its code.
 	 *
 	 * @since 0.2.0
@@ -177,6 +193,39 @@ final class AuthorizeTest extends GatewayTestCase {
 		$this->assertSame( '{"mock_application_codes":"INSTRUMENT_DECLINED"}', $this->headers()['PayPal-Mock-Response'] );
 		$this->assertResult( $result, Outcome::Declined, 2000, Fixtures::DEBUG_ID, 'instrument_declined', null );
 		$this->assertSame( array( 'paypal.declined' ), $this->context->log->codes() );
+	}
+
+	/**
+	 * Tests the refusals of the order's creation: PayPal's final no to the payer or the card is a decline with its issue; anything else, such as a feature the merchant's account lacks or a request PayPal could not read, is no answer, logged by its issue.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_only_a_refusal_of_the_payer_or_the_card_is_a_decline(): void {
+		foreach ( array( 'PAYER_CANNOT_PAY', 'TRANSACTION_REFUSED', 'CARD_EXPIRED', 'PAYMENT_DENIED' ) as $issue ) {
+			$this->context->paypal->answer( 'POST', 'v2/checkout/orders', 422, Fixtures::issue( $issue ) );
+
+			$this->assertResult( $this->gateway->authorize( self::request( 'vault:' . Fixtures::VAULT_ID ) ), Outcome::Declined, 2000, Fixtures::DEBUG_ID, strtolower( $issue ), null );
+		}
+
+		$this->assertNotContains( 'paypal.request_refused', $this->context->log->codes() );
+
+		$refused = array(
+			array( 422, Fixtures::issue( 'AUTH_CAPTURE_NOT_ENABLED' ), 'AUTH_CAPTURE_NOT_ENABLED' ),
+			array( 422, Fixtures::issue( 'PAYEE_ACCOUNT_RESTRICTED' ), 'PAYEE_ACCOUNT_RESTRICTED' ),
+			array( 422, Fixtures::issue( 'AN_ISSUE_PAYPAL_ADDS_LATER' ), null ),
+			array( 400, Fixtures::text( 'error-400' ), 'DECIMAL_PRECISION' ),
+		);
+
+		foreach ( $refused as list( $status, $body, $issue ) ) {
+			$this->context->log->lines = array();
+			$this->context->paypal->answer( 'POST', 'v2/checkout/orders', $status, $body );
+
+			$this->unavailable( fn() => $this->gateway->authorize( self::request( 'vault:' . Fixtures::VAULT_ID ) ) );
+
+			$line = $this->context->log->contextOf( 'paypal.request_refused' );
+			$this->assertSame( array( $status, $issue ), array( $line['http_status'] ?? null, $line['issue'] ?? null ) );
+			$this->assertNotContains( 'paypal.declined', $this->context->log->codes(), 'Not the shopper\'s refusal, so never told to them as one.' );
+		}
 	}
 
 	/**

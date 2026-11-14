@@ -117,29 +117,73 @@ final class PayPalCodes {
 	);
 
 	/**
-	 * The issues of an error's details the gateway reads or may repeat.
+	 * The issues that are PayPal's final no to a request, which the gateway answers as a decline with the issue as its code.
+	 *
+	 * The payer's or their account's refusal; the card's, its bank's or its processor's; a risk
+	 * check's, PayPal's or the merchant's own; and an authorization or a capture that can no longer
+	 * give what was asked: voided or expired, or refunded in full, beyond its amount, its count or its
+	 * time. Any other issue, such as a feature the merchant's account lacks, a permission the app
+	 * lacks or a request PayPal could not read, says nothing about the shopper's payment: the gateway
+	 * logs it for a person and answers GatewayUnavailable, never a decline. From the issues of
+	 * PayPal's Orders v2 and Payments v2 errors.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	public const DECLINES = array(
+		// The payer, or their account.
+		'PAYER_ACCOUNT_LOCKED_OR_CLOSED',
+		'PAYER_ACCOUNT_RESTRICTED',
+		'PAYER_ACTION_REQUIRED',
+		'PAYER_CANNOT_PAY',
+		'PAYER_NOT_SUPPORTED_BY_PAYMENT_SOURCE',
+		// The card, its bank or its processor.
+		'CARD_BRAND_NOT_SUPPORTED',
+		'CARD_COUNTRY_NOT_SUPPORTED',
+		'CARD_EXPIRED',
+		'CONTINGENCY_NOT_SUCCESSFUL',
+		'INSTRUMENT_DECLINED',
+		'INVALID_VAULT_ID',
+		'PAYMENT_SOURCE_CANNOT_BE_USED',
+		'PAYMENT_SOURCE_DECLINED_BY_PROCESSOR',
+		'PAYMENT_SOURCE_INFO_CANNOT_BE_VERIFIED',
+		'REFERENCED_CARD_EXPIRED',
+		// A risk check, PayPal's or the merchant's.
+		'COMPLIANCE_VIOLATION',
+		'MAX_NUMBER_OF_PAYMENT_ATTEMPTS_EXCEEDED',
+		'PAYEE_BLOCKED_TRANSACTION',
+		'PAYMENT_DENIED',
+		'TRANSACTION_BLOCKED_BY_PAYEE',
+		'TRANSACTION_REFUSED',
+		// An authorization or a capture that can no longer give what was asked.
+		'AUTHORIZATION_EXPIRED',
+		'AUTHORIZATION_VOIDED',
+		'CAPTURE_FULLY_REFUNDED',
+		'MAX_NUMBER_OF_REFUNDS_EXCEEDED',
+		'REFUND_AMOUNT_EXCEEDED',
+		'REFUND_TIME_LIMIT_EXCEEDED',
+	);
+
+	/**
+	 * The issues of an error's details the gateway reads or may repeat: the declines, and the others it reads or names in a log line.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @var list<string>
 	 */
 	public const ISSUES = array(
+		...self::DECLINES,
 		'AMOUNT_MISMATCH',
 		'AUTH_CAPTURE_NOT_ENABLED',
 		'AUTHORIZATION_ALREADY_CAPTURED',
-		'AUTHORIZATION_EXPIRED',
-		'AUTHORIZATION_VOIDED',
 		'CANNOT_BE_NEGATIVE',
 		'CANNOT_BE_ZERO_OR_NEGATIVE',
-		'CAPTURE_FULLY_REFUNDED',
-		'CARD_EXPIRED',
-		'COMPLIANCE_VIOLATION',
 		'CURRENCY_MISMATCH',
 		'CURRENCY_NOT_SUPPORTED',
 		'DECIMAL_PRECISION',
 		'DUPLICATE_INVOICE_ID',
 		'DUPLICATE_REQUEST_ID',
-		'INSTRUMENT_DECLINED',
 		'INVALID_PARAMETER_SYNTAX',
 		'INVALID_PARAMETER_VALUE',
 		'INVALID_RESOURCE_ID',
@@ -147,7 +191,6 @@ final class PayPalCodes {
 		'MAX_AUTHORIZATION_COUNT_EXCEEDED',
 		'MAX_CAPTURE_AMOUNT_EXCEEDED',
 		'MAX_CAPTURE_COUNT_EXCEEDED',
-		'MAX_NUMBER_OF_REFUNDS_EXCEEDED',
 		'MISSING_REQUIRED_PARAMETER',
 		'NOT_ENABLED_TO_VAULT_PAYMENT_SOURCE',
 		'ORDER_ALREADY_AUTHORIZED',
@@ -156,20 +199,11 @@ final class PayPalCodes {
 		'ORDER_EXPIRED',
 		'ORDER_NOT_APPROVED',
 		'PAYEE_ACCOUNT_RESTRICTED',
-		'PAYER_ACCOUNT_RESTRICTED',
-		'PAYER_ACTION_REQUIRED',
-		'PAYER_CANNOT_PAY',
-		'PAYMENT_SOURCE_CANNOT_BE_USED',
-		'PAYMENT_SOURCE_DECLINED_BY_PROCESSOR',
-		'PAYMENT_SOURCE_INFO_CANNOT_BE_VERIFIED',
 		'PERMISSION_DENIED',
 		'PREVIOUSLY_CAPTURED',
 		'PREVIOUSLY_VOIDED',
-		'REFUND_AMOUNT_EXCEEDED',
 		'REFUND_NOT_ALLOWED',
-		'REFUND_TIME_LIMIT_EXCEEDED',
 		'RESOURCE_NOT_FOUND',
-		'TRANSACTION_REFUSED',
 		'UNSUPPORTED_PARAMETER',
 	);
 

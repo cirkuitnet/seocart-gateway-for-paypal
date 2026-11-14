@@ -91,4 +91,39 @@ final class AmountsTest extends TestCase {
 			)
 		);
 	}
+
+	/**
+	 * Tests an amount compared with PayPal's: the same currency and minor units, by digits; anything else, or anything unreadable, is another amount.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_an_amount_matches_only_the_same_currency_and_minor_units(): void {
+		$asked = Money::of( 2000, Currency::of( 'USD' ) );
+
+		foreach ( array( '20.00', '20.0', '20' ) as $value ) {
+			$this->assertTrue( Amounts::matches( self::paypal( 'USD', $value ), $asked ), "`{$value}` is 20 dollars." );
+		}
+
+		foreach ( array( array( 'USD', '19.99' ), array( 'USD', '20.01' ), array( 'EUR', '20.00' ), array( 'JPY', '2000' ), array( 'USD', '20.001' ), array( 'USD', '' ) ) as list( $currency, $value ) ) {
+			$this->assertFalse( Amounts::matches( self::paypal( $currency, $value ), $asked ), "{$currency} `{$value}` is not 20 dollars." );
+		}
+
+		$this->assertFalse( Amounts::matches( array(), $asked ), 'No amount is not the amount.' );
+	}
+
+	/**
+	 * Returns PayPal's money object.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $currency The currency.
+	 * @param string $value    The value.
+	 * @return array{currency_code: string, value: string} The object.
+	 */
+	private static function paypal( string $currency, string $value ): array {
+		return array(
+			'currency_code' => $currency,
+			'value'         => $value,
+		);
+	}
 }
