@@ -23,8 +23,9 @@ require_once __DIR__ . '/LivePayPalCase.php';
 
 /**
  * Against PayPal's sandbox, with SEOCart's own placement, status query and reconciliation job:
- * a card payment whose bank asks for 3-D Secure is approved in PayPal's card fields in a browser,
- * and the store's status query then authorizes it; a card whose check fails is declined under the
+ * with the mode set to ask the card's bank every time, a card payment whose bank asks for 3-D
+ * Secure is approved in PayPal's card fields in a browser, and the store's status query then
+ * authorizes it; a card whose check fails is declined under the
  * policy that requires the liability to move, and authorized under the policy that accepts it; a
  * shopper who never acts has the payment voided when the window ends, with nothing sent to PayPal,
  * as nothing is held; and a vaulted card's authorization, voided by the store, reads `VOIDED` at
@@ -43,6 +44,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 	 */
 	public function test_3ds_completed_in_the_browser_then_resumed_is_authorized(): void {
 		$this->begin( 'live-3ds-completed' );
+		self::alwaysAskTheBank();
 
 		$placed = $this->placeLive( 'card' );
 		$this->assertSame( 'requires_action', $placed['outcome'] );
@@ -66,6 +68,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 	 */
 	public function test_3ds_failed_is_declined_under_require_and_authorized_under_accept(): void {
 		$this->begin( 'live-3ds-failed' );
+		self::alwaysAskTheBank();
 
 		$required = $this->placeLive( 'card' );
 		$this->assertSame( 'approved', $this->approveInBrowser( $required, self::STEP_UP_FAILS ), 'The card fields did not hand the failed check back to the store.' );
@@ -126,5 +129,18 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		$this->assertSame( 'VOIDED', $this->paypalOrder( (string) $placed['paypal_order'] )['purchase_units'][0]['payments']['authorizations'][0]['status'] ?? null );
 
 		$this->end();
+	}
+
+	/**
+	 * Sets the test mode to ask the card's bank to confirm every card payment (`SCA_ALWAYS`), as a merchant may.
+	 *
+	 * The run's settings keep PayPal's default, `SCA_WHEN_REQUIRED`, under which PayPal asks the bank
+	 * only when a rule requires it: for this US account it asked for nothing, so the step-up cards
+	 * were authorized with no 3-D Secure result at all. The step-up tests need the check made.
+	 *
+	 * @since 0.2.0
+	 */
+	private static function alwaysAskTheBank(): void {
+		GatewayKernel::alterStored( Gateway::ID, Mode::Test, Gateway::SCA_POLICY, static fn(): string => 'SCA_ALWAYS' );
 	}
 }
