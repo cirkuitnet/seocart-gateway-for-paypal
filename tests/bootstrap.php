@@ -5,8 +5,8 @@
  * The extension has no development dependencies of its own. SEOCart's unit bootstrap, in the
  * SEOCart checkout beside this one, defines a placeholder ABSPATH and loads SEOCart's
  * development autoloader (PHPUnit, Brain Monkey, SEOCart and its test support); this file adds
- * the extension's own namespace to that autoloader. The integration suite runs on SEOCart's
- * integration bootstrap instead (sh ../seocart/bin/ci/extension.sh integration .).
+ * the extension's own namespace, and its tests', to that autoloader. The integration suite runs
+ * on SEOCart's integration bootstrap instead (sh ../seocart/bin/ci/extension.sh integration .).
  *
  * @package SEOCart\GatewayForPayPal
  * @since   0.1.0
@@ -24,3 +24,4 @@ require dirname( __DIR__, 2 ) . '/seocart/tests/bootstrap-unit.php';
  */
 $seocart_gateway_for_paypal_loader = require dirname( __DIR__, 2 ) . '/seocart/vendor/autoload.php';
 $seocart_gateway_for_paypal_loader->addPsr4( 'SEOCart\GatewayForPayPal\\', dirname( __DIR__ ) . '/src/' );
+$seocart_gateway_for_paypal_loader->addPsr4( 'SEOCart\GatewayForPayPal\Tests\\', __DIR__ . '/' );

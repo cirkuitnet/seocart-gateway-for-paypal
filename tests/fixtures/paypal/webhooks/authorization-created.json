@@ -1,0 +1,15 @@
+{
+    "signed_by": "A key pair made for the test fixtures; its private key was never written.",
+    "webhook_id": "0TESTWEBHOOK00001",
+    "mode": "test",
+    "signed_at": "2026-11-14T12:19:53+00:00",
+    "headers": {
+        "content-type": "application/json",
+        "paypal-transmission-id": "6f4a2602-9b03-4fc2-b821-86fba4b9ff58",
+        "paypal-transmission-time": "2026-11-14T12:19:53Z",
+        "paypal-transmission-sig": "FKtRL6imuEO43FenVX4v/W+tvNkPPbVcsYb4I9RQvAMF8jpr65rqPDv3MuRYMsredlL5FiEyXGNRCroaHVwtLOz4TIlZjQL1QHlTh6kHLfAMIBDVkTNOa/C5UAleW1PWd3vjtckMmn0uEyUGfUn8HETFvkoQrRPm3bF4BurwHLsTYcx+S87bttcRQJ7nbxFAxDXFjR9vGAV7iSLT0w2PAKe8XePZZ6SIngQ569QrjTaF4depvA2RxS7VG/XPDRmqGa+gxqjYqOkOpL7r2B6qEo0IeI7tveQxhFDp09gNWbHn+HhMRHmIUSjkU2k2yAK64a6Qwpqx1MwpHFdHGzIixw==",
+        "paypal-auth-algo": "SHA256withRSA",
+        "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test-0001"
+    },
+    "body": "{\"id\":\"WH-Y417D237CFR6UYB3C-AWAWKP33MX89JENVU\",\"event_version\":\"1.0\",\"create_time\":\"2026-11-14T12:19:53.000Z\",\"resource_type\":\"authorization\",\"resource_version\":\"2.0\",\"event_type\":\"PAYMENT.AUTHORIZATION.CREATED\",\"summary\":\"A test event of the type PAYMENT.AUTHORIZATION.CREATED.\",\"resource\":{\"status\":\"CREATED\",\"id\":\"0VF52814937998046\",\"amount\":{\"currency_code\":\"USD\",\"value\":\"20.00\"},\"custom_id\":\"0199c0de-0000-7000-8000-00000000c001\",\"seller_protection\":{\"status\":\"NOT_ELIGIBLE\"},\"expiration_time\":\"2026-12-13T12:00:00Z\",\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046\",\"rel\":\"self\",\"method\":\"GET\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046/capture\",\"rel\":\"capture\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046/void\",\"rel\":\"void\",\"method\":\"POST\"},{\"href\":\"https://api.sandbox.paypal.com/v2/checkout/orders/5O190127TN364715T\",\"rel\":\"up\",\"method\":\"GET\"}],\"create_time\":\"2026-11-14T11:59:59Z\",\"update_time\":\"2026-11-14T11:59:59Z\",\"supplementary_data\":{\"related_ids\":{\"order_id\":\"5O190127TN364715T\"}}},\"links\":[{\"href\":\"https://api.sandbox.paypal.com/v1/notifications/webhooks-events/WH-Y417D237CFR6UYB3C-AWAWKP33MX89JENVU\",\"rel\":\"self\",\"method\":\"GET\"}]}"
+}

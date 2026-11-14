@@ -1,0 +1,35 @@
+{
+    "id": "5O190127TN364715T",
+    "intent": "AUTHORIZE",
+    "status": "PAYER_ACTION_REQUIRED",
+    "payment_source": {
+        "paypal": {}
+    },
+    "purchase_units": [
+        {
+            "reference_id": "default",
+            "amount": {
+                "currency_code": "USD",
+                "value": "20.00"
+            },
+            "payee": {
+                "merchant_id": "C7CYMKZDG8D6E"
+            },
+            "description": "1001",
+            "custom_id": "0199c0de-0000-7000-8000-00000000a001"
+        }
+    ],
+    "create_time": "2026-11-14T11:59:58Z",
+    "links": [
+        {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/5O190127TN364715T",
+            "rel": "self",
+            "method": "GET"
+        },
+        {
+            "href": "https://www.sandbox.paypal.com/checkoutnow?token=5O190127TN364715T",
+            "rel": "payer-action",
+            "method": "GET"
+        }
+    ]
+}

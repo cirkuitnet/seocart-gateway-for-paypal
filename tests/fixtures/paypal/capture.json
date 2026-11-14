@@ -1,0 +1,52 @@
+{
+    "id": "2GG279541U471931P",
+    "status": "COMPLETED",
+    "amount": {
+        "currency_code": "USD",
+        "value": "20.00"
+    },
+    "final_capture": true,
+    "custom_id": "0199c0de-0000-7000-8000-00000000a001",
+    "seller_protection": {
+        "status": "NOT_ELIGIBLE"
+    },
+    "seller_receivable_breakdown": {
+        "gross_amount": {
+            "currency_code": "USD",
+            "value": "20.00"
+        },
+        "paypal_fee": {
+            "currency_code": "USD",
+            "value": "0.89"
+        },
+        "net_amount": {
+            "currency_code": "USD",
+            "value": "19.11"
+        }
+    },
+    "supplementary_data": {
+        "related_ids": {
+            "order_id": "5O190127TN364715T",
+            "authorization_id": "0VF52814937998046"
+        }
+    },
+    "links": [
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/2GG279541U471931P",
+            "rel": "self",
+            "method": "GET"
+        },
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/2GG279541U471931P/refund",
+            "rel": "refund",
+            "method": "POST"
+        },
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046",
+            "rel": "up",
+            "method": "GET"
+        }
+    ],
+    "create_time": "2026-11-14T12:00:00Z",
+    "update_time": "2026-11-14T12:00:00Z"
+}

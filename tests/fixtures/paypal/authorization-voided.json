@@ -1,0 +1,32 @@
+{
+    "id": "0VF52814937998046",
+    "status": "VOIDED",
+    "amount": {
+        "currency_code": "USD",
+        "value": "20.00"
+    },
+    "custom_id": "0199c0de-0000-7000-8000-00000000a001",
+    "seller_protection": {
+        "status": "NOT_ELIGIBLE"
+    },
+    "supplementary_data": {
+        "related_ids": {
+            "order_id": "5O190127TN364715T"
+        }
+    },
+    "expiration_time": "2026-12-13T12:00:00Z",
+    "links": [
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0VF52814937998046",
+            "rel": "self",
+            "method": "GET"
+        },
+        {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/5O190127TN364715T",
+            "rel": "up",
+            "method": "GET"
+        }
+    ],
+    "create_time": "2026-11-14T11:59:59Z",
+    "update_time": "2026-11-14T12:02:00Z"
+}

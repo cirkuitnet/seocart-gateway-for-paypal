@@ -1,0 +1,42 @@
+{
+    "id": "1JU08902781691411",
+    "status": "COMPLETED",
+    "amount": {
+        "currency_code": "USD",
+        "value": "10.00"
+    },
+    "custom_id": "0199c0de-0000-7000-8000-00000000b001",
+    "seller_payable_breakdown": {
+        "gross_amount": {
+            "currency_code": "USD",
+            "value": "10.00"
+        },
+        "net_amount": {
+            "currency_code": "USD",
+            "value": "10.00"
+        },
+        "total_refunded_amount": {
+            "currency_code": "USD",
+            "value": "10.00"
+        }
+    },
+    "supplementary_data": {
+        "related_ids": {
+            "order_id": "5O190127TN364715T"
+        }
+    },
+    "links": [
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/refunds/1JU08902781691411",
+            "rel": "self",
+            "method": "GET"
+        },
+        {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/2GG279541U471931P",
+            "rel": "up",
+            "method": "GET"
+        }
+    ],
+    "create_time": "2026-11-14T12:01:00Z",
+    "update_time": "2026-11-14T12:01:00Z"
+}
