@@ -20,3 +20,10 @@ they verify under (`cert.pem`). They are signed by a key pair `tests/Support/wri
 generated once and kept nowhere: the private key was never written, and the certificate names
 itself a test fixture. `webhooks/README.md` says how they are replaced by two deliveries PayPal
 signed.
+
+Two things wait for those real deliveries. The gateway accepts a certificate fetched from the
+mode's own certificate address whose subject is any name under `.paypal.com`; requiring the
+exact name (`messageverificationcerts.paypal.com`, or `messageverificationcerts.sandbox.paypal.com`
+in the sandbox) waits until a real live certificate has been seen. And the sandbox certificate
+fetched while the gateway was built had expired in 2021, so the first thing the follow-up with
+real deliveries shows is whether a sandbox delivery verifies under the gateway's validity check.
