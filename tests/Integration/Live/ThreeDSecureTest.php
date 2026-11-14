@@ -75,7 +75,10 @@ final class ThreeDSecureTest extends LivePayPalCase {
 
 		$declined = $this->payments()->queryGateway( $this->ref( $required['intent_uuid'] ) );
 		$this->assertSame( array( 'declined', 'liability_shift_not_possible' ), array( $declined?->outcome->value, $declined?->errorCode ), 'Under require, a card whose liability stayed with the store is declined.' );
-		$this->assertSame( 'APPROVED', $this->paypalOrder( (string) $required['paypal_order'] )['status'] ?? null, 'Under require, nothing was authorized.' );
+		$held = $this->paypalOrder( (string) $required['paypal_order'] );
+
+		// PayPal leaves an order of its card fields CREATED once the shopper passed the bank's challenge; under require it stays so, holding no authorization.
+		$this->assertSame( array( 'CREATED', array() ), array( $held['status'] ?? null, $held['purchase_units'][0]['payments']['authorizations'] ?? array() ), 'Under require, nothing was authorized.' );
 
 		GatewayKernel::alterStored( Gateway::ID, Mode::Test, Gateway::LIABILITY_POLICY, static fn(): string => Gateway::ACCEPT_ANY );
 
