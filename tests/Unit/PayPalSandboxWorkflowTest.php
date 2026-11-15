@@ -33,6 +33,11 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
  *   step by its anchor; WordPress's download; a third party's action; and in the script, in the
  *   functions those steps reach: `npm ci` and `npx --yes` in configure(), the site's step run
  *   through filtered(): the test of the lists fails naming each;
+ * - in the script: WP-CLI given `--exec` or `--require`; a dispatch branch running `npm ci` after
+ *   its function; a `trap` and an `npx` at the top level; backticks, and `npm ci` substituted in a
+ *   parameter's expansion, in configure(); `sed`'s `e` in count(); `sort`'s `--compress-program`
+ *   in harvest_site(); and `npm ci` after a `}` that ends configure() early: the same test fails
+ *   naming each;
  * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails;
  * - in the file, the harvest's query piped into `tr` again, or the clean-up removing its folder
  *   whatever became of the harvest: the test of a failed harvest fails.
@@ -61,14 +66,14 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	private const STEP_KEYS = array( 'name', 'id', 'if', 'run' );
 
 	/**
-	 * The only commands the functions those steps reach may run, as patterns of a simple command once its assignments,
-	 * its `env` and its redirections are put aside. None can install, download or build anything:
+	 * The only commands the script's top level and the functions those steps reach may run, as patterns of a simple
+	 * command once its assignments, its `env` and its redirections are put aside, beside the calls EXACT lists. None can
+	 * install, download or build anything:
 	 *
-	 * - the shell's own words and the POSIX tools for text and files, which run no code they are not given;
+	 * - the shell's own words and the POSIX tools for text, files and paths, which run no code they are not given;
 	 * - PHP running this checkout's own helpers, or the PHPUnit SEOCart's set-up installed before the settings step;
 	 * - SEOCart's conformance suite, which runs that PHPUnit;
-	 * - WP-CLI on the site, through site_wp(), for the gateway's configuration and the database's prefix and one read:
-	 *   never `core download` nor `plugin install`;
+	 * - WP-CLI on the site, as site_wp() runs it for the calls EXACT lists;
 	 * - jq, which rewrites the settings file;
 	 * - the Playwright the browser step installed, running the tests: never npx, which fetches a package it lacks;
 	 * - the site's file of its address and administrator, which the site step wrote, read into the shell;
@@ -79,14 +84,32 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @var list<string>
 	 */
 	private const COMMANDS = array(
-		'/^(\[|test|true|false|printf|echo|cat|grep|sed|sort|tail|tee|tr|cut|mkdir|touch|sleep|rm|mv|chmod|kill|date|umask|cd|set|export|shift|return|exit)( |$)/',
+		'/^(\[|test|true|false|printf|echo|cat|grep|tail|tee|tr|cut|mkdir|touch|sleep|rm|mv|chmod|kill|date|umask|cd|pwd|dirname|set|export|shift|return|exit)( |$)/',
 		'/^php "\$(step_php|ext\/tests\/Integration\/Live\/cleanup\.php|core\/vendor\/bin\/phpunit)"( |$)/',
 		'/^sh "\$core\/bin\/ci\/extension\.sh" conformance( |$)/',
 		'/^wp --path="\$site_dir" "\$@"$/',
-		'/^site_wp (seocart gateway configure|db prefix|db query)( |$)/',
 		'/^jq( |$)/',
 		'/^node_modules\/\.bin\/playwright test( |$)/',
 		'/^\. "\$site_env"$/',
+	);
+
+	/**
+	 * The calls allowed only as written, whole, of the commands an option can turn to running code: WP-CLI, whose
+	 * `--exec` and `--require` run PHP, for the gateway's configuration, the database's prefix and the one read of the
+	 * site's orders; sed, whose `e` runs a command, for the two edits in use; and sort, whose `--compress-program` runs
+	 * one, for the run list's.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	private const EXACT = array(
+		'site_wp seocart gateway configure paypal --mode=test --from-file="$settings" --no-webhooks --user=admin',
+		'site_wp db prefix',
+		'site_wp db query "SELECT provider_intent_id, uuid FROM ${prefix}seocart_payment_intents WHERE gateway_id = \'paypal\' AND provider_intent_id REGEXP \'^[A-Z0-9]{17}\$\'" --skip-column-names',
+		'sed \'s/^/- /\'',
+		'sed -n "s/^ *\([0-9][0-9]*\) $2.*/\1/p" "$1"',
+		'sort -u -o "$run_list" "$run_list"',
 	);
 
 	/**
@@ -168,7 +191,9 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 */
 	public static function afterSettingsPlanted(): array {
 		$script = static fn( string $after, string $line ): \Closure => static fn( array $lines, array $script ): array => array( $lines, self::after( $script, $after, $line ) );
+		$swap   = static fn( string $pattern, string $line ): \Closure => static fn( array $lines, array $script ): array => array( $lines, self::replaced( $script, $pattern, $line ) );
 		$step   = static fn( string $after, string $line ): \Closure => static fn( array $lines, array $script ): array => array( self::after( $lines, $after, $line ), $script );
+		$top    = 'The script\'s top level, which every step runs, runs a command not on the list: ';
 
 		return array(
 			'the settings before the site is built' => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh ext/bin/ci/paypal-sandbox.sh site`.', $step( '/^            - \*browser-unit$/', '            - *settings' ) ),
@@ -183,6 +208,17 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			'the zip built in harvest_site()'       => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
 			'site() run through filtered()'         => array( 'The step checkout, which the job checkout runs after its settings step, runs in site() a command not on the list: `npm ci`.', $script( '/^checkout\(\) \{$/', "\tfiltered \"\$work/x.out\" site" ) ),
 			'a pass-through of its own'             => array( 'The step checkout, which the job checkout runs after its settings step, runs in checkout() a command not on the list: `heads npm ci`.', static fn( array $lines, array $script ): array => array( $lines, self::after( self::after( $script, '/^checkout\(\) \{$/', "\theads npm ci" ), '/^heads\(\) \{$/', "\t\"\$@\"" ) ) ),
+			'WP-CLI told to run code by an option'  => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `site_wp db prefix --exec=\'passthru("npm ci");\'`.', $swap( '/^\tprefix=\$\(site_wp db prefix /', "\tprefix=\$(site_wp db prefix --exec='passthru(\"npm ci\");' </dev/null) || return 1" ) ),
+			'WP-CLI told to load a file'            => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `site_wp seocart gateway configure paypal --mode=test --from-file="$settings" --no-webhooks --user=admin --require=/tmp/x.php`.', $swap( '/^\tsite_wp seocart gateway configure /', "\tsite_wp seocart gateway configure paypal --mode=test --from-file=\"\$settings\" --no-webhooks --user=admin --require=/tmp/x.php </dev/null" ) ),
+			'a branch running more than its step'   => array( 'The script\'s dispatch runs `configure) configure; npm ci ;;`: each of its branches is exactly `<step>) <function> ;;`.', $swap( '/^\tconfigure\) configure ;;$/', "\tconfigure) configure; npm ci ;;" ) ),
+			'a trap at the top level'               => array( $top . '`trap \'npm ci\' EXIT`.', $script( '/^set -eu$/', 'trap \'npm ci\' EXIT' ) ),
+			'a command at the top level'            => array( $top . '`npx --yes cowsay hello`.', $script( '/^outputs=/', 'npx --yes cowsay hello' ) ),
+			'a } at the start of a line'            => array( $top . '`npm ci`.', static fn( array $lines, array $script ): array => array( $lines, array_reduce( array( "\tnpm ci", '}', "\t\ttrue", "\t{" ), static fn( array $script, string $line ): array => self::after( $script, '/^configure\(\) \{$/', $line ), $script ) ) ),
+			'backticks in double quotes'            => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command substitution in backticks, which this test does not read.', $script( '/^configure\(\) \{$/', "\techo \"`npm ci`\"" ) ),
+			'backticks in an assignment'            => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command substitution in backticks, which this test does not read.', $script( '/^configure\(\) \{$/', "\tdone=`npm ci`" ) ),
+			'a substitution in an expansion'        => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npm ci`.', $script( '/^configure\(\) \{$/', "\tdone=\${done:-\$(npm ci)}" ) ),
+			'sed running a command'                 => array( 'The step checkout, which the job checkout runs after its settings step, runs in count() a command not on the list: `sed -n \'1e npm ci\' "$1"`.', $script( '/^count\(\) \{$/', "\tsed -n '1e npm ci' \"\$1\"" ) ),
+			'sort running a program'                => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `sort --compress-program=sh -u -o "$run_list" "$run_list"`.', $swap( '/^\tsort -u -o /', "\tsort --compress-program=sh -u -o \"\$run_list\" \"\$run_list\" || return 1" ) ),
 		);
 	}
 
@@ -359,9 +395,13 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * The settings file holds the sandbox app's secret, so it is written last: a package's install
 	 * script, a build, a downloaded browser or an action would run with the file readable otherwise.
 	 * The lists are closed: after the settings step a job may run only the script's steps
-	 * (STEPS_AFTER_SETTINGS) and the clean-up's anchor, with no action at all; and the functions
-	 * those steps reach, followed through every call and every function named as an argument, may
-	 * run only the commands COMMANDS allows, a wrapper's command checked at its call (WRAPPERS).
+	 * (STEPS_AFTER_SETTINGS) and the clean-up's anchor, with no action at all; each branch of the
+	 * script's dispatch runs one function and nothing else; and the script's top level, which every
+	 * step runs, and the functions the top level and those steps reach, followed through every call
+	 * and every function named as an argument, may run only the commands COMMANDS and EXACT allow, a
+	 * wrapper's command checked at its call (WRAPPERS). A line the script's functions do not hold,
+	 * such as one after a `}` that ends a function early, is the top level's; a command substitution
+	 * in backticks, which is not read, is refused.
 	 *
 	 * @since 0.2.0
 	 *
@@ -396,28 +436,60 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			}
 		}
 
-		$functions = self::functions( $script );
+		$parts     = self::parts( $script );
+		$functions = $parts['functions'] + array( '' => $parts['top'] );
 		$dispatch  = array();
 
-		foreach ( $script as $line ) {
-			if ( 1 === preg_match( '/^\t([a-z-]+)\) ([a-z_]+)\b/', $line, $match ) ) {
-				$dispatch[ $match[1] ] = $match[2];
+		foreach ( self::refusals( '', $functions ) as $problem ) {
+			$violations[] = sprintf( 'The script\'s top level, which every step runs, runs %s.', $problem );
+		}
+
+		if ( null === $parts['dispatch'] ) {
+			$violations[] = 'The script has no dispatch, `case ${1:-} in` to `esac`: its steps cannot be read.';
+		}
+
+		foreach ( $parts['dispatch'] ?? array() as $line ) {
+			if ( 1 === preg_match( '/^\t([a-z-]+)\) ([a-z_]+)(?: "\$\{2:-\}")? ;;$/D', $line, $match ) ) {
+				$dispatch[ $match[1] ] ??= $match[2];
+			} elseif ( '' !== $line && 1 !== preg_match( '/^\t\*\) fail \'[^\']*\' ;;$/D', $line ) ) {
+				$violations[] = sprintf( 'The script\'s dispatch runs `%s`: each of its branches is exactly `<step>) <function> ;;`.', trim( $line ) );
 			}
 		}
 
 		foreach ( $steps as $step => $jobs ) {
-			foreach ( self::reached( $dispatch[ (string) strtok( $step, ' ' ) ] ?? '', $functions ) as $function ) {
-				foreach ( self::commands( $functions[ $function ] ) as $words ) {
-					$problem = self::refusal( $words, $function, $functions );
-
-					foreach ( null === $problem ? array() : array_keys( $jobs ) as $job ) {
-						$violations[] = sprintf( 'The step %1$s, which the job %2$s runs after its settings step, runs in %3$s() %4$s.', $step, $job, $function, $problem );
-					}
+			foreach ( self::refusals( $dispatch[ (string) strtok( $step, ' ' ) ] ?? '-', $functions ) as $problem ) {
+				foreach ( array_keys( $jobs ) as $job ) {
+					$violations[] = sprintf( 'The step %1$s, which the job %2$s runs after its settings step, runs %3$s.', $step, $job, $problem );
 				}
 			}
 		}
 
 		return array_values( array_unique( $violations ) );
+	}
+
+	/**
+	 * Returns why each command of a function, and of every function it reaches, is not allowed.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string                      $first     The function's name; `''` for the script's top level.
+	 * @param array<string, list<string>> $functions The script's functions, and its top level by `''`.
+	 * @return list<string> Each why, as `in <function>() <why>`, or the top level's own as `<why>`.
+	 */
+	private static function refusals( string $first, array $functions ): array {
+		$found = array();
+
+		foreach ( self::reached( $first, $functions ) as $function ) {
+			foreach ( self::commands( $functions[ $function ] ) as $words ) {
+				$problem = self::refusal( $words, $function, $functions );
+
+				if ( null !== $problem ) {
+					$found[] = '' === $function ? $problem : sprintf( 'in %1$s() %2$s', $function, $problem );
+				}
+			}
+		}
+
+		return $found;
 	}
 
 	/**
@@ -474,8 +546,8 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @since 0.2.0
 	 *
 	 * @param string[]                    $words     The command's words.
-	 * @param string                      $within    The function it is in.
-	 * @param array<string, list<string>> $functions The script's functions.
+	 * @param string                      $within    The function it is in; `''` for the script's top level.
+	 * @param array<string, list<string>> $functions The script's functions, and its top level by `''`.
 	 * @return string|null Why not; null when allowed.
 	 * @phpstan-param list<string> $words
 	 */
@@ -489,6 +561,10 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$name    = $words[0];
 		$command = implode( ' ', $words );
 
+		if ( '`' === $name ) {
+			return 'a command substitution in backticks, which this test does not read';
+		}
+
 		if ( isset( self::WRAPPERS[ $name ] ) ) {
 			return self::refusal( array_slice( $words, 1 + self::WRAPPERS[ $name ] ), $within, $functions );
 		}
@@ -497,7 +573,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			return isset( self::WRAPPERS[ $within ] ) ? null : sprintf( 'the command its caller gives it (`%s`), though it is no wrapper whose calls are checked', $command );
 		}
 
-		if ( isset( $functions[ $name ] ) && ! self::passesThrough( $functions[ $name ] ) ) {
+		if ( ( isset( $functions[ $name ] ) && ! self::passesThrough( $functions[ $name ] ) ) || in_array( $command, self::EXACT, true ) ) {
 			return null;
 		}
 
@@ -550,8 +626,10 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 
 	/**
 	 * Returns the simple commands of a function's lines, each as its words, quotes kept: a command
-	 * substitution `$( … )` is a command of its own, an arithmetic expansion a number, a case's
-	 * patterns and the heads of `case` and `for` no command.
+	 * substitution `$( … )`, in double quotes or in a parameter's expansion `${ … }` as much as
+	 * outside them, is a command of its own, an arithmetic expansion a number, a case's
+	 * patterns and the heads of `case` and `for` no command, and a backtick outside single quotes
+	 * the command `` ` ``, which is refused.
 	 *
 	 * @since 0.2.0
 	 *
@@ -598,10 +676,11 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 				[ $quoted, $inner, $at ] = self::doubleQuoted( $text, $at );
 				$word                   .= $quoted;
 				$commands                = array_merge( $commands, $inner );
-			} elseif ( '\\' === $char || '${' === $two ) {
-				$close = '\\' === $char ? $at + 1 : (int) strpos( $text, '}', $at );
-				$word .= substr( $text, $at, $close - $at + 1 );
-				$at    = $close;
+			} elseif ( '\\' === $char ) {
+				$word .= substr( $text, $at++, 2 );
+			} elseif ( '`' === $char ) {
+				$commands[] = array( '`' );
+				$word      .= $char;
 			} elseif ( '#' === $char && null === $word ) {
 				$close = strpos( $text, "\n", $at );
 				$at    = ( false === $close ? $length : $close ) - 1;
@@ -642,6 +721,9 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 				$commands = array_merge( $commands, self::lex( substr( $text, $at + 2, $close - $at - 2 ) ) );
 				$quoted  .= '$(…)';
 				$at       = $close;
+			} elseif ( '`' === $text[ $at ] ) {
+				$commands[] = array( '`' );
+				$quoted    .= '`';
 			} else {
 				$quoted .= $text[ $at ];
 			}
@@ -724,30 +806,50 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * Returns the script's functions: each one's lines, by its name.
+	 * Returns the script's parts: its functions, each one's lines from its `name() {` to the first `}` that starts a
+	 * line, by its name; its dispatch's branches, from the first `case ${1:-} in` that starts a line to the `esac` that
+	 * ends it, or null without one; and every other line, its top level.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @param string[] $script The script's lines.
-	 * @return array<string, list<string>> The functions.
+	 * @return array{functions: array<string, list<string>>, dispatch: list<string>|null, top: list<string>} The parts.
 	 * @phpstan-param list<string> $script
 	 */
-	private static function functions( array $script ): array {
-		$functions = array();
-		$name      = null;
+	private static function parts( array $script ): array {
+		$parts = array(
+			'functions' => array(),
+			'dispatch'  => null,
+			'top'       => array(),
+		);
+		$name  = null;
+		$case  = false;
 
 		foreach ( $script as $line ) {
-			if ( 1 === preg_match( '/^([a-z_]+)\(\) \{$/', $line, $match ) ) {
-				$name               = $match[1];
-				$functions[ $name ] = array();
-			} elseif ( '}' === $line ) {
-				$name = null;
-			} elseif ( null !== $name ) {
-				$functions[ $name ][] = $line;
+			if ( null !== $name ) {
+				if ( '}' === $line ) {
+					$name = null;
+				} else {
+					$parts['functions'][ $name ][] = $line;
+				}
+			} elseif ( $case ) {
+				if ( 'esac' === $line ) {
+					$case = false;
+				} else {
+					$parts['dispatch'][] = $line;
+				}
+			} elseif ( 1 === preg_match( '/^([a-z_]+)\(\) \{$/', $line, $match ) ) {
+				$name                        = $match[1];
+				$parts['functions'][ $name ] = array();
+			} elseif ( 'case ${1:-} in' === $line && null === $parts['dispatch'] ) {
+				$case              = true;
+				$parts['dispatch'] = array();
+			} else {
+				$parts['top'][] = $line;
 			}
 		}
 
-		return $functions;
+		return $parts;
 	}
 
 	/**
@@ -757,8 +859,8 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @param string                      $first     The function's name.
-	 * @param array<string, list<string>> $functions The script's functions.
+	 * @param string                      $first     The function's name; `''` for the script's top level.
+	 * @param array<string, list<string>> $functions The script's functions, and its top level by `''`.
 	 * @return list<string> The names.
 	 */
 	private static function reached( string $first, array $functions ): array {
@@ -864,7 +966,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @phpstan-param list<string> $script
 	 */
 	private static function cleanupHarvestsFirst( array $script ): ?string {
-		$heads = array_map( static fn( array $words ): string => implode( ' ', self::bare( $words ) ), self::commands( self::functions( $script )['cleanup'] ?? array() ) );
+		$heads = array_map( static fn( array $words ): string => implode( ' ', self::bare( $words ) ), self::commands( self::parts( $script )['functions']['cleanup'] ?? array() ) );
 		$void  = array_keys( preg_grep( '/^php "\$ext\/tests\/Integration\/Live\/cleanup\.php"/', $heads ) );
 		$reap  = array_keys( preg_grep( '/^harvest_site$/', $heads ) );
 
