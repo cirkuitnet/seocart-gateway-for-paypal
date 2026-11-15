@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
 
 /**
- * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and, once a job's settings file is written, which holds the sandbox app's secret, runs only the script's own steps, which run only commands that cannot install, download or build; and its clean-up lists the checkout site's orders before it voids. Each fact is planted broken, in memory, and found.
+ * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and, once a job's settings file is written, which holds the sandbox app's secret, runs only the script's own steps, which run only commands that cannot install, download or build; and its clean-up lists the checkout site's orders before it voids, and, when it cannot list them, voids what is listed, then fails and keeps what it needs to run again. Each fact is planted broken, in memory, and found.
  *
  * Pins, the PHP set-up, Composer and the Node.js version are SEOCart's check of workflows'
  * (`sh ../seocart/bin/ci/check-workflows.sh .`), which the required gates run.
@@ -33,7 +33,9 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
  *   step by its anchor; WordPress's download; a third party's action; and in the script, in the
  *   functions those steps reach: `npm ci` and `npx --yes` in configure(), the site's step run
  *   through filtered(): the test of the lists fails naming each;
- * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails.
+ * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails;
+ * - in the file, the harvest's query piped into `tr` again, or the clean-up removing its folder
+ *   whatever became of the harvest: the test of a failed harvest fails.
  *
  * @since 0.2.0
  */
@@ -199,7 +201,72 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @since 0.2.0
 	 */
 	public function test_a_cleanup_that_does_not_harvest_first_is_found(): void {
-		$this->assertSame( 'cleanup() voids what the run list names without putting the site\'s orders on it first.', self::cleanupHarvestsFirst( self::without( self::script(), '/^\t\t\tharvest_site \|\| status=1$/' ) ) );
+		$this->assertSame( 'cleanup() voids what the run list names without putting the site\'s orders on it first.', self::cleanupHarvestsFirst( self::without( self::script(), '/^\t\t\tharvest_site \|\| /' ) ) );
+	}
+
+	/**
+	 * Tests that the clean-up voids what the run list names whatever became of the site's harvest, and that, when the site's orders could not be put on the list, it then fails, saying why, and keeps the settings file, the run list and the site.
+	 *
+	 * The script's cleanup step runs for real, its RUNNER_TEMP a folder of the test's own holding a settings file, a run
+	 * list naming one order, the site's file and its folder, and WP-CLI and PHP stood in for at the head of its PATH:
+	 * WP-CLI answers as the case says, and PHP, in the place of the voiding, keeps the run list it is given.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @dataProvider harvests
+	 *
+	 * @param string $wp     The stand-in WP-CLI's script.
+	 * @param bool   $failed Whether the harvest fails.
+	 * @param string $voided The run list the voiding is given.
+	 * @param string $said   Text the step prints.
+	 */
+	public function test_the_cleanup_voids_what_is_listed_and_fails_when_the_harvest_fails( string $wp, bool $failed, string $voided, string $said ): void {
+		$root   = sys_get_temp_dir() . '/paypal-sandbox-cleanup-' . bin2hex( random_bytes( 8 ) );
+		$work   = $root . '/paypal-sandbox';
+		$listed = "LISTED00000000001 0199c0de-0000-7000-8000-00000000a001\n";
+
+		try {
+			mkdir( $root . '/bin', 0700, true );
+			mkdir( $work . '/site', 0700, true );
+			file_put_contents( $work . '/settings.json', "{}\n" );
+			file_put_contents( $work . '/site.env', "WP_BASE_URL=http://127.0.0.1:9\n" );
+			file_put_contents( $work . '/run-list', $listed );
+			file_put_contents( $root . '/bin/wp', "#!/bin/sh\n" . $wp );
+			file_put_contents( $root . '/bin/php', "#!/bin/sh\ncat \"\$3\" >\"\$SEOCART_TEST_VOIDED\"\n" );
+			chmod( $root . '/bin/wp', 0700 );
+			chmod( $root . '/bin/php', 0700 );
+
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- the script's own step, with stand-ins of the test's own.
+			exec( sprintf( 'env PATH=%1$s RUNNER_TEMP=%2$s SEOCART_TEST_VOIDED=%3$s sh %4$s cleanup 2>&1', escapeshellarg( $root . '/bin:' . getenv( 'PATH' ) ), escapeshellarg( $root ), escapeshellarg( $root . '/voided' ), escapeshellarg( dirname( __DIR__, 2 ) . '/bin/ci/paypal-sandbox.sh' ) ), $output, $status );
+			$printed = implode( "\n", $output );
+
+			$this->assertSame( $failed, 0 !== $status, 'The step fails when the harvest failed, and only then: ' . $printed );
+			$this->assertStringContainsString( $said, $printed );
+			$this->assertSame( $voided, is_file( $root . '/voided' ) ? file_get_contents( $root . '/voided' ) : 'nothing', 'The voiding is given the run list.' );
+			$this->assertSame( $failed ? $listed : 'nothing', is_file( $work . '/settings.json' ) && is_dir( $work . '/site' ) ? file_get_contents( $work . '/run-list' ) : 'nothing', 'The settings file, the run list and the site are kept when the harvest failed, and only then.' );
+		} finally {
+			self::remove( $root );
+		}
+	}
+
+	/**
+	 * Returns the ways the clean-up's harvest can go: the site's folder missing, as when WP-CLI fails on every command; the database's prefix read and its query refused; and the harvest done.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return array<string, array{string, bool, string, string}> The stand-in WP-CLI's script, whether the harvest fails, the run list the voiding is given and text the step prints; by name.
+	 */
+	public static function harvests(): array {
+		$refused = "echo 'Error: This does not seem to be a WordPress installation.' >&2\nexit 1\n";
+		$prefix  = "[ \"\$2 \$3\" = 'db prefix' ] && echo wp_ && exit 0\n";
+		$listed  = "LISTED00000000001 0199c0de-0000-7000-8000-00000000a001\n";
+		$error   = '::error::The site\'s PayPal orders could not be put on the run list';
+
+		return array(
+			'the site\'s folder missing' => array( $refused, true, $listed, $error ),
+			'its query refused'          => array( $prefix . $refused, true, $listed, $error ),
+			'the harvest done'           => array( $prefix . "printf 'HARVESTED00000002\\t0199c0de-0000-7000-8000-00000000a002\\n'\n", false, "HARVESTED00000002 0199c0de-0000-7000-8000-00000000a002\n" . $listed, '2 PayPal orders on the run list.' ),
+		);
 	}
 
 	/**
@@ -802,6 +869,25 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$reap  = array_keys( preg_grep( '/^harvest_site$/', $heads ) );
 
 		return array() !== $void && array() !== $reap && $reap[0] < $void[0] ? null : 'cleanup() voids what the run list names without putting the site\'s orders on it first.';
+	}
+
+	/**
+	 * Removes a file or a folder of the test's own, and everything in it.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $path The file or folder.
+	 */
+	private static function remove( string $path ): void {
+		if ( is_dir( $path ) && ! is_link( $path ) ) {
+			foreach ( array_diff( (array) scandir( $path ), array( '.', '..' ) ) as $name ) {
+				self::remove( $path . '/' . $name );
+			}
+
+			rmdir( $path );
+		} elseif ( file_exists( $path ) || is_link( $path ) ) {
+			unlink( $path );
+		}
 	}
 
 	/**

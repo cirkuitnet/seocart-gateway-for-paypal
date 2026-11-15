@@ -35,7 +35,9 @@
 #   cleanup         Puts the PayPal orders of the checkout's site, when the job has one, on the run
 #                   list, whatever became of the job's steps; voids what the run left authorized at
 #                   PayPal (no webhook is created or removed); then stops the site's server, and
-#                   removes the settings file, the run list, the report and the site.
+#                   removes the settings file, the run list, the report and the site. When the site's
+#                   orders cannot be listed, it still voids what the list names, then fails, saying
+#                   why, and keeps those files and the site for the clean-up to run again.
 #   verdict         Says, for each thing the run proves, which job proves it and how it went
 #                   (PAYPAL_SANDBOX_NEEDS, PAYPAL_SANDBOX_PARTS), and fails a red run.
 #
@@ -287,12 +289,14 @@ browser_tests() {
 }
 
 # Adds the site's PayPal orders to the run list, each as PayPal's id and the store's uuid, once: an
-# order harvested again is still one line.
+# order harvested again is still one line. Fails when WP-CLI does: its caller tests the status, so
+# stop-on-error is off here, and each command's status is tested where it is run, none in a pipe.
 harvest_site() {
-	prefix=$(site_wp db prefix </dev/null)
+	prefix=$(site_wp db prefix </dev/null) || return 1
 	site_wp db query "SELECT provider_intent_id, uuid FROM ${prefix}seocart_payment_intents WHERE gateway_id = 'paypal' AND provider_intent_id REGEXP '^[A-Z0-9]{17}\$'" \
-		--skip-column-names </dev/null | tr '\t' ' ' >>"$run_list"
-	sort -u -o "$run_list" "$run_list"
+		--skip-column-names </dev/null >"$work/site-orders" || return 1
+	tr '\t' ' ' <"$work/site-orders" >>"$run_list" || return 1
+	sort -u -o "$run_list" "$run_list" || return 1
 	echo "$(grep -c '^[A-Z0-9]\{17\} ' "$run_list" || true) PayPal orders on the run list."
 }
 
@@ -331,11 +335,12 @@ checkout() {
 
 cleanup() {
 	status=0
+	harvested=true
 	if [ -f "$settings" ]; then
 		# The checkout's site holds the orders its tests made, even when a step failed or the job ran
 		# out of time before they were listed: they are listed before anything is voided.
 		if [ -f "$site_env" ]; then
-			harvest_site || status=1
+			harvest_site || harvested=false
 		fi
 		php "$ext/tests/Integration/Live/cleanup.php" "$settings" "$run_list" || status=$?
 	else
@@ -343,6 +348,13 @@ cleanup() {
 	fi
 	if [ -f "$work/server.pid" ]; then
 		kill "$(cat "$work/server.pid")" 2>/dev/null || true
+		rm -f "$work/server.pid"
+	fi
+	if [ "$harvested" = false ]; then
+		# What the site's orders authorized may still be held: what the clean-up needs to run again
+		# once the site answers is kept.
+		printf '::error::The site'\''s PayPal orders could not be put on the run list, so what they authorized may still be held: the settings file, the run list and the site are kept in %s, for the clean-up to run again once the site answers.\n' "$work"
+		return 1
 	fi
 	rm -rf "$work"
 	return "$status"
