@@ -9,6 +9,10 @@ not.
 
 ## [Unreleased]
 
+- The checkout's PayPal form: the shopper chooses PayPal, finishing on PayPal's page and coming back, or a card typed
+  into PayPal's card fields, with the bank's check on the page; PayPal's script is loaded only once a card is chosen.
+  When the store asks the bank to check every card, a card PayPal approved with no check is now treated as one whose
+  check left the liability with the store.
 - The PayPal adapter: card and PayPal payments through PayPal Complete Payments with your own REST app, authorized
   once the shopper approves them at PayPal or in PayPal's card fields (with 3-D Secure, and your choice of whether a
   card whose check leaves the liability with your store is declined) and captured later in full or in part, voided,
