@@ -88,13 +88,14 @@ final class LiveVerdictTest extends TestCase {
 			array(
 				'live-conformance' => 'skipped',
 				'three-d-secure'   => 'skipped',
+				'checkout'         => 'skipped',
 			)
 		);
 
 		$this->assertTrue( Verdict::judge( $needs, 'webhooks' )['green'] );
 		$this->assertFalse( Verdict::judge( $needs, 'all' )['green'] );
 		$this->assertFalse( Verdict::judge( $needs, 'everything' )['green'], 'An unknown part is refused.' );
-		$this->assertSame( array( 'The parts input `cli` names no part: all, conformance, three-d-secure, webhooks.' ), Verdict::judge( self::needs(), 'cli' )['problems'], 'The CLI is not a part.' );
+		$this->assertSame( array( 'The parts input `cli` names no part: all, conformance, three-d-secure, webhooks, checkout.' ), Verdict::judge( self::needs(), 'cli' )['problems'], 'The CLI is not a part.' );
 	}
 
 	/**

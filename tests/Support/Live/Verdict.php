@@ -34,6 +34,7 @@ final class Verdict {
 		'live-conformance' => 'conformance',
 		'three-d-secure'   => 'three-d-secure',
 		'webhooks'         => 'webhooks',
+		'checkout'         => 'checkout',
 	);
 
 	/**
@@ -51,6 +52,8 @@ final class Verdict {
 		'A vaulted card\'s authorization voided: `VOIDED` at PayPal' => 'three-d-secure',
 		'The delivery fixtures verified with a certificate fetched from PayPal' => 'webhooks',
 		'The owner\'s webhook and the run\'s events listed by PayPal' => 'webhooks',
+		'The checkout\'s PayPal form in a browser: PayPal\'s script only for a card, a card with no challenge, two presses, a new amount, and PayPal\'s page left for and come back from' => 'checkout',
+		'The checkout\'s PayPal form with the bank\'s check always asked: a challenge passed, one failed and declined, and a reload during one' => 'checkout',
 	);
 
 	/**
@@ -215,7 +218,7 @@ final class Verdict {
 	}
 
 	/**
-	 * Describes a job's facts of the run: the nonce, the liability results, the events counted.
+	 * Describes a job's facts of the run: the nonce, the liability results, the events counted, the browser tests' extra presses.
 	 *
 	 * @since 0.2.0
 	 *
@@ -225,7 +228,7 @@ final class Verdict {
 	private static function facts( array $outputs ): string {
 		$facts = array();
 
-		foreach ( array( 'nonce', 'liability-shift', 'events', 'webhook-id' ) as $fact ) {
+		foreach ( array( 'nonce', 'liability-shift', 'events', 'webhook-id', 'extra-presses' ) as $fact ) {
 			if ( isset( $outputs[ $fact ] ) && '' !== $outputs[ $fact ] ) {
 				$facts[] = $fact . ': ' . $outputs[ $fact ];
 			}

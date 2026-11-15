@@ -20,8 +20,22 @@
 #                   checks it ran the replay's tests with the replay's two skips.
 #   live <part>     Runs the live tests of a part, three-d-secure or webhooks: exactly the part's
 #                   tests must run, and each pass, none skipped.
+#   site            Builds and installs the site the checkout's browser tests run against, in the
+#                   runner's temporary directory, before the settings file exists: SEOCart's scripts
+#                   built, SEOCart and this plugin installed from the zips built here, the runner's
+#                   own address trusted as a proxy, and the site served by PHP's built-in server
+#                   (WORDPRESS_VERSION and the SEOCART_CI_DB_* variables, as SEOCart's extension
+#                   workflow sets them). Its administrator's password is made for the run and masked.
+#   configure       Configures that site's gateway in test mode from the settings file, its webhooks
+#                   left out. Installs and builds nothing: the file holds the sandbox app's secret.
+#   checkout        Runs the checkout's browser tests (tests/browser/specs) against that site: those
+#                   tagged @when-required, then, the settings file rewritten to ask the bank to check
+#                   every card and the gateway configured from it again, those tagged @always. Each
+#                   must pass, none skipped. Whatever became of them, the PayPal orders the site
+#                   created go on the run list.
 #   cleanup         Voids what the run left authorized at PayPal (no webhook is created or
-#                   removed); then removes the settings file, the run list and the report.
+#                   removed); then stops the site's server, and removes the settings file, the run
+#                   list, the report and the site.
 #   verdict         Says, for each thing the run proves, which job proves it and how it went
 #                   (PAYPAL_SANDBOX_NEEDS, PAYPAL_SANDBOX_PARTS), and fails a red run.
 #
@@ -44,11 +58,21 @@ work=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/paypal-sandbox
 settings=$work/settings.json
 run_list=$work/run-list
 report=$work/report
+site_dir=$work/site
+site_env=$work/site.env
+site_url=http://127.0.0.1:${PAYPAL_SANDBOX_HTTP_PORT:-8890}
 outputs=${GITHUB_OUTPUT:-/dev/stdout}
 
 # Writes one output of the step.
 output() {
 	printf '%s=%s\n' "$1" "$2" >>"$outputs"
+}
+
+# Masks a value in the rest of the job's log; outside GitHub Actions there is no log to mask.
+mask() {
+	if [ "${GITHUB_ACTIONS:-}" = true ]; then
+		printf '::add-mask::%s\n' "$1"
+	fi
 }
 
 # Fails when a secret is empty: require_secret <name> <value>. The message names the secret, never
@@ -172,12 +196,146 @@ live() {
 	return "$status"
 }
 
+# Runs WP-CLI against the checkout's site. Standard input is closed so that no command waits for a
+# prompt, unless the caller gives one.
+site_wp() {
+	wp --path="$site_dir" "$@"
+}
+
+site() {
+	for name in WORDPRESS_VERSION SEOCART_CI_DB_HOST SEOCART_CI_DB_USER SEOCART_CI_DB_PASSWORD SEOCART_CI_DB_NAME; do
+		eval "is_set=\${$name+set}"
+		[ "${is_set:-}" = set ] || fail "site: the environment variable $name is not set."
+	done
+	umask 077
+
+	echo 'Building SEOCart'\''s scripts and the two zips.'
+	(cd "$core" && npm ci && npm run build)
+	php "$core/bin/build-zip.php"
+	php "$core/bin/build-zip.php" --plugin="$ext"
+
+	echo 'Installing WordPress.'
+	sh "$core/bin/ci/download-wordpress.sh" "$WORDPRESS_VERSION" "$site_dir"
+	# The passwords are read from standard input so that they never appear in the process table.
+	printf '%s\n' "$SEOCART_CI_DB_PASSWORD" | site_wp config create --dbname="$SEOCART_CI_DB_NAME" \
+		--dbuser="$SEOCART_CI_DB_USER" --dbhost="$SEOCART_CI_DB_HOST" --dbprefix=checkout_ --prompt=dbpass >/dev/null
+	site_wp config set WP_ENVIRONMENT_TYPE local </dev/null
+	site_wp config set DISABLE_WP_CRON true --raw </dev/null
+	# The tests reach the site from this runner, as a proxy would, and give each test an address of
+	# its own in X-Forwarded-For: the store allows one client five placements and resumes an hour.
+	site_wp config set SEOCART_TRUSTED_PROXIES '127.0.0.0/8, ::1' </dev/null
+	password=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+	mask "$password"
+	printf '%s\n' "$password" | site_wp core install --url="$site_url" --title='SEOCart checkout' --admin_user=admin \
+		--admin_email=admin@example.org --skip-email --prompt=admin_password >/dev/null
+
+	echo 'Installing SEOCart and the adapter from their zips.'
+	for zip in "$core"/dist/seocart-*.zip "$ext"/dist/seocart-gateway-for-paypal-*.zip; do
+		site_wp plugin install "$zip" --activate </dev/null
+	done
+
+	# Opcache off, for the reason SEOCart's install smoke test gives.
+	php -d opcache.enable=0 -d opcache.enable_cli=0 -S "${site_url#http://}" -t "$site_dir" >"$work/server.log" 2>&1 &
+	echo "$!" >"$work/server.pid"
+	attempts=0
+	until curl -s -o /dev/null "$site_url/license.txt"; do
+		attempts=$((attempts + 1))
+		[ "$attempts" -lt 20 ] || fail 'PHP'\''s built-in server did not start.'
+		sleep 1
+	done
+
+	printf 'WP_BASE_URL=%s\nWP_USERNAME=admin\nWP_PASSWORD=%s\n' "$site_url" "$password" >"$site_env"
+	chmod 600 "$site_env"
+	echo "The site answers at $site_url, SEOCart and the adapter active."
+}
+
+# Configures the site's gateway from the settings file, once it is written; nothing is installed or
+# built from then on.
+configure() {
+	[ -f "$settings" ] || fail 'The settings file is missing: run the settings step first.'
+	[ -f "$site_env" ] || fail 'The site is missing: run the site step first.'
+	site_wp seocart gateway configure paypal --mode=test --from-file="$settings" --no-webhooks --user=admin </dev/null
+	echo 'The gateway takes payments in test mode, its webhooks left out.'
+}
+
+# Sets when the settings file asks PayPal for the bank's check: the file is written again beside
+# itself, readable by its owner alone, and put in its place.
+policy() {
+	umask 077
+	jq --arg policy "$1" '.sca_policy = $policy' "$settings" >"$settings.next"
+	chmod 600 "$settings.next"
+	mv "$settings.next" "$settings"
+	echo "The settings file asks for the bank's check: $1."
+}
+
+# Runs the checkout's browser tests of one group against the site, its output filtered and kept:
+# browser_tests <group> <kept output>. The site's address and administrator, and the settings
+# file's path, which the tests give PHP to read the public settings from: none is an argument a
+# process list would show.
+browser_tests() {
+	(
+		cd "$ext/tests/browser"
+		set -a
+		# shellcheck disable=SC1090 # The site's file, written by the site step.
+		. "$site_env"
+		set +a
+		SEOCART_TAPE_SETTINGS=$settings
+		export SEOCART_TAPE_SETTINGS
+		filtered "$2" npx playwright test --config playwright.config.mjs --forbid-only --grep "@$1"
+	)
+}
+
+# Adds the site's PayPal orders to the run list, each as PayPal's id and the store's uuid.
+harvest_site() {
+	prefix=$(site_wp db prefix </dev/null)
+	site_wp db query "SELECT provider_intent_id, uuid FROM ${prefix}seocart_payment_intents WHERE gateway_id = 'paypal' AND provider_intent_id REGEXP '^[A-Z0-9]{17}\$'" \
+		--skip-column-names </dev/null | tr '\t' ' ' >>"$run_list"
+	echo "$(grep -c '^[A-Z0-9]\{17\} ' "$run_list" || true) PayPal orders on the run list."
+}
+
+# Reads a count of Playwright's summary from a group's output: count <output> passed|skipped.
+count() {
+	sed -n "s/^ *\([0-9][0-9]*\) $2.*/\1/p" "$1" | tail -n 1
+}
+
+checkout() {
+	[ -f "$settings" ] || fail 'The settings file is missing: run the settings step first.'
+	[ -f "$site_env" ] || fail 'The site is missing: run the site step first.'
+	status=0
+	browser_tests when-required "$work/checkout-when-required.out" || status=$?
+	policy SCA_ALWAYS
+	configure
+	browser_tests always "$work/checkout-always.out" || status=$?
+	harvest_site || status=1
+	passed=0
+	skipped=0
+	for group in when-required always; do
+		group_passed=$(count "$work/checkout-$group.out" passed)
+		group_skipped=$(count "$work/checkout-$group.out" skipped)
+		if [ "${group_passed:-0}" -eq 0 ] || [ "${group_skipped:-0}" -ne 0 ]; then
+			printf '::error::The checkout'\''s @%s browser tests passed %s and skipped %s: each must run and pass.\n' "$group" "${group_passed:-0}" "${group_skipped:-0}"
+			status=1
+		fi
+		passed=$((passed + ${group_passed:-0}))
+		skipped=$((skipped + ${group_skipped:-0}))
+	done
+	extra=$(cat "$work/checkout-when-required.out" "$work/checkout-always.out" | grep -c '^extra press:' || true)
+	output tests "$passed"
+	output skipped "$skipped"
+	output extra-presses "$extra"
+	echo "The checkout's browser tests: $passed passed, $skipped skipped, $extra extra presses after a refusal before any challenge."
+	return "$status"
+}
+
 cleanup() {
 	status=0
 	if [ -f "$settings" ]; then
 		php "$ext/tests/Integration/Live/cleanup.php" "$settings" "$run_list" || status=$?
 	else
 		echo 'cleanup: no settings file, so this job made no request to PayPal.'
+	fi
+	if [ -f "$work/server.pid" ]; then
+		kill "$(cat "$work/server.pid")" 2>/dev/null || true
 	fi
 	rm -rf "$work"
 	return "$status"
@@ -194,7 +352,10 @@ case ${1:-} in
 	webhook-id) webhook_id ;;
 	conformance) conformance ;;
 	live) live "${2:-}" ;;
+	site) site ;;
+	configure) configure ;;
+	checkout) checkout ;;
 	cleanup) cleanup ;;
 	verdict) verdict ;;
-	*) fail 'usage: paypal-sandbox.sh check-secrets|settings|heads|webhook-id|conformance|live <part>|cleanup|verdict' ;;
+	*) fail 'usage: paypal-sandbox.sh check-secrets|settings|heads|webhook-id|conformance|live <part>|site|configure|checkout|cleanup|verdict' ;;
 esac
