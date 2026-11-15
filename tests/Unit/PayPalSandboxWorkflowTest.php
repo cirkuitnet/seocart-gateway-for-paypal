@@ -169,18 +169,18 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$step   = static fn( string $after, string $line ): \Closure => static fn( array $lines, array $script ): array => array( self::after( $lines, $after, $line ), $script );
 
 		return array(
-			'the settings before the site is built'   => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh ext/bin/ci/paypal-sandbox.sh site`.', $step( '/^            - \*browser-unit$/', '            - *settings' ) ),
-			'composer install after them'             => array( 'The job webhooks runs, after its settings step, a command that is not one of the script\'s steps: `run: composer install --working-dir=seocart`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - run: composer install --working-dir=seocart' ) ),
-			'npm i under its alias'                   => array( 'The job live-conformance runs, after its settings step, a command that is not one of the script\'s steps: `run: npm i --prefix ext/tests/browser`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh conformance$/', '            - run: npm i --prefix ext/tests/browser' ) ),
-			'pip install'                             => array( 'The job three-d-secure runs, after its settings step, a command that is not one of the script\'s steps: `run: pip install requests`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live three-d-secure$/', '            - run: pip install requests' ) ),
-			'a set-up step by its anchor'             => array( 'The job webhooks runs `- *setup-node` after its settings step: only the script\'s own steps may follow it.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - *setup-node' ) ),
-			'WordPress downloaded'                    => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"' ) ),
-			'an action of a third party'              => array( 'The job checkout uses an action after its settings step: `uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567' ) ),
-			'npm ci in configure()'                   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npm ci`.', $script( '/^configure\(\) \{$/', "\t(cd \"\$core\" && npm ci)" ) ),
-			'npx fetching a package in configure()'   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npx --yes cowsay hello`.', $script( '/^configure\(\) \{$/', "\tnpx --yes cowsay hello" ) ),
-			'the zip built in harvest_site()'         => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
-			'site() run through filtered()'           => array( 'The step checkout, which the job checkout runs after its settings step, runs in site() a command not on the list: `npm ci`.', $script( '/^checkout\(\) \{$/', "\tfiltered \"\$work/x.out\" site" ) ),
-			'a pass-through of its own'               => array( 'The step checkout, which the job checkout runs after its settings step, runs in checkout() a command not on the list: `heads npm ci`.', static fn( array $lines, array $script ): array => array( $lines, self::after( self::after( $script, '/^checkout\(\) \{$/', "\theads npm ci" ), '/^heads\(\) \{$/', "\t\"\$@\"" ) ) ),
+			'the settings before the site is built' => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh ext/bin/ci/paypal-sandbox.sh site`.', $step( '/^            - \*browser-unit$/', '            - *settings' ) ),
+			'composer install after them'           => array( 'The job webhooks runs, after its settings step, a command that is not one of the script\'s steps: `run: composer install --working-dir=seocart`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - run: composer install --working-dir=seocart' ) ),
+			'npm i under its alias'                 => array( 'The job live-conformance runs, after its settings step, a command that is not one of the script\'s steps: `run: npm i --prefix ext/tests/browser`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh conformance$/', '            - run: npm i --prefix ext/tests/browser' ) ),
+			'pip install'                           => array( 'The job three-d-secure runs, after its settings step, a command that is not one of the script\'s steps: `run: pip install requests`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live three-d-secure$/', '            - run: pip install requests' ) ),
+			'a set-up step by its anchor'           => array( 'The job webhooks runs `- *setup-node` after its settings step: only the script\'s own steps may follow it.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - *setup-node' ) ),
+			'WordPress downloaded'                  => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"' ) ),
+			'an action of a third party'            => array( 'The job checkout uses an action after its settings step: `uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567' ) ),
+			'npm ci in configure()'                 => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npm ci`.', $script( '/^configure\(\) \{$/', "\t(cd \"\$core\" && npm ci)" ) ),
+			'npx fetching a package in configure()' => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npx --yes cowsay hello`.', $script( '/^configure\(\) \{$/', "\tnpx --yes cowsay hello" ) ),
+			'the zip built in harvest_site()'       => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
+			'site() run through filtered()'         => array( 'The step checkout, which the job checkout runs after its settings step, runs in site() a command not on the list: `npm ci`.', $script( '/^checkout\(\) \{$/', "\tfiltered \"\$work/x.out\" site" ) ),
+			'a pass-through of its own'             => array( 'The step checkout, which the job checkout runs after its settings step, runs in checkout() a command not on the list: `heads npm ci`.', static fn( array $lines, array $script ): array => array( $lines, self::after( self::after( $script, '/^checkout\(\) \{$/', "\theads npm ci" ), '/^heads\(\) \{$/', "\t\"\$@\"" ) ) ),
 		);
 	}
 
@@ -358,10 +358,11 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @param string                                                                         $job        The job.
-	 * @param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item       The step.
-	 * @param string[]                                                                       $violations The violations, noted into.
+	 * @param string   $job        The job.
+	 * @param array    $item       The step: its alias or anchor, its keys and their first lines, its keys whose value goes on.
+	 * @param string[] $violations The violations, noted into.
 	 * @return string|null The script's step, such as `configure` or `live webhooks`.
+	 * @phpstan-param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item
 	 * @phpstan-param list<string> $violations
 	 */
 	private static function scriptStep( string $job, array $item, array &$violations ): ?string {
@@ -406,12 +407,12 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @since 0.2.0
 	 *
 	 * @param string[]                    $words     The command's words.
-	 * @param string                      $function  The function it is in.
+	 * @param string                      $within    The function it is in.
 	 * @param array<string, list<string>> $functions The script's functions.
 	 * @return string|null Why not; null when allowed.
 	 * @phpstan-param list<string> $words
 	 */
-	private static function refusal( array $words, string $function, array $functions ): ?string {
+	private static function refusal( array $words, string $within, array $functions ): ?string {
 		$words = self::bare( $words );
 
 		if ( array() === $words ) {
@@ -422,11 +423,11 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$command = implode( ' ', $words );
 
 		if ( isset( self::WRAPPERS[ $name ] ) ) {
-			return self::refusal( array_slice( $words, 1 + self::WRAPPERS[ $name ] ), $function, $functions );
+			return self::refusal( array_slice( $words, 1 + self::WRAPPERS[ $name ] ), $within, $functions );
 		}
 
 		if ( '"$@"' === $name ) {
-			return isset( self::WRAPPERS[ $function ] ) ? null : sprintf( 'the command its caller gives it (`%s`), though it is no wrapper whose calls are checked', $command );
+			return isset( self::WRAPPERS[ $within ] ) ? null : sprintf( 'the command its caller gives it (`%s`), though it is no wrapper whose calls are checked', $command );
 		}
 
 		if ( isset( $functions[ $name ] ) && ! self::passesThrough( $functions[ $name ] ) ) {
@@ -564,8 +565,9 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	private static function doubleQuoted( string $text, int $at ): array {
 		$quoted   = '"';
 		$commands = array();
+		$length   = strlen( $text );
 
-		for ( ++$at; $at < strlen( $text ) && '"' !== $text[ $at ]; $at++ ) {
+		for ( ++$at; $at < $length && '"' !== $text[ $at ]; $at++ ) {
 			if ( '\\' === $text[ $at ] ) {
 				$quoted .= substr( $text, $at++, 2 );
 			} elseif ( '$(' === substr( $text, $at, 2 ) ) {
@@ -591,12 +593,14 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @return int Its closing parenthesis's place; the text's end when it has none.
 	 */
 	private static function closing( string $text, int $at ): int {
-		for ( $depth = 1; $at < strlen( $text ); $at++ ) {
+		$length = strlen( $text );
+
+		for ( $depth = 1; $at < $length; $at++ ) {
 			$char = $text[ $at ];
 
 			if ( "'" === $char ) {
 				$close = strpos( $text, "'", $at + 1 );
-				$at    = false === $close ? strlen( $text ) : $close;
+				$at    = false === $close ? $length : $close;
 			} elseif ( '\\' === $char ) {
 				++$at;
 			} elseif ( '(' === $char ) {
@@ -606,7 +610,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			}
 		}
 
-		return strlen( $text );
+		return $length;
 	}
 
 	/**
@@ -617,6 +621,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @param string|null $word  The word; null between words.
 	 * @param string[]    $words The command's words, added to.
 	 * @phpstan-param list<string> $words
+	 * @phpstan-param-out null $word
 	 */
 	private static function endWord( ?string &$word, array &$words ): void {
 		if ( null !== $word ) {
@@ -630,11 +635,12 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @param string[]           $words    The command's words, emptied.
-	 * @param list<list<string>> $commands The commands, added to.
-	 * @param int                $cases    How many `case` commands are open.
-	 * @param bool               $closing  Whether a `)` ends it.
+	 * @param string[] $words    The command's words, emptied.
+	 * @param array    $commands The commands, added to.
+	 * @param int      $cases    How many `case` commands are open.
+	 * @param bool     $closing  Whether a `)` ends it.
 	 * @phpstan-param list<string> $words
+	 * @phpstan-param list<list<string>> $commands
 	 */
 	private static function endCommand( array &$words, array &$commands, int &$cases, bool $closing ): void {
 		$head = self::bare( $words )[0] ?? null;
@@ -764,9 +770,10 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 *
 	 * @since 0.2.0
 	 *
-	 * @param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item The step, read into.
-	 * @param string                                                                         $text The line, without its indentation.
+	 * @param array  $item The step, read into.
+	 * @param string $text The line, without its indentation.
 	 * @return string The key; `?` for a line that is no key.
+	 * @phpstan-param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item
 	 */
 	private static function stepKey( array &$item, string $text ): string {
 		if ( 1 !== preg_match( '/^([A-Za-z0-9_-]+):\s*(.*)$/', $text, $match ) ) {
