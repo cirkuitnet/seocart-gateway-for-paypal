@@ -4,6 +4,7 @@
 /vendor/
 /node_modules/
 /tests/browser/node_modules/
+/tests/browser/test-results/
 
 # Test and tool output, and local configuration.
 /.phpunit.cache/

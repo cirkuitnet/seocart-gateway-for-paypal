@@ -1,16 +1,18 @@
 {
 	"name": "seocart-gateway-for-paypal-browser",
 	"private": true,
-	"description": "Approves a PayPal sandbox order in PayPal's card fields in a browser, for the PayPal sandbox workflow's live tests.",
+	"description": "The browser side of the PayPal adapter's tests: the checkout's PayPal form's own tests, the form in a browser against PayPal's sandbox, and a PayPal sandbox order approved in PayPal's card fields for the live tests.",
 	"license": "GPL-3.0-or-later",
 	"type": "module",
 	"engines": {
 		"node": ">=24"
 	},
 	"scripts": {
-		"test": "node --test"
+		"test": "node --test",
+		"test:checkout": "playwright test --config playwright.config.mjs"
 	},
 	"dependencies": {
+		"@playwright/test": "1.63.0",
 		"playwright": "1.63.0"
 	}
 }
