@@ -77,7 +77,7 @@ PayPal signs each webhook delivery it sends the store. SEOCart Gateway for PayPa
 The PayPal JavaScript SDK is PayPal's script for taking card details in the browser. SEOCart Gateway for PayPal loads it on the checkout page to show PayPal's card fields, and to let the card's bank confirm a payment there (3D Secure).
 
 * Endpoint: `https://www.paypal.com/sdk/js`
-* Data sent: Sent to PayPal by the shopper's browser, never by your site: the REST app's client id and the payment's currency, in the script's address; the card number, expiry date and security code the shopper types into PayPal's fields; the billing address the checkout holds (postal address only); and the bank's check. PayPal's script also collects information about the browser and device, and sets its own cookies, to prevent fraud.
+* Data sent: Sent to PayPal by the shopper's browser, never by your site: the REST app's client id and the payment's currency, in the script's address; the card number, expiry date and security code the shopper types into PayPal's fields; the billing address the checkout holds (postal address only); and the bank's check. PayPal's script also collects information about the browser and device, sets its own cookies, and keeps an id of its own and the time its session began in the browser's local storage.
 * When: On the checkout page, once the shopper chooses to pay by card with PayPal, and when they place the order with it. Nothing is loaded on any other page, before the card is chosen, or for a shopper who pays with PayPal on PayPal's site.
 * Terms of use: https://www.paypal.com/legalhub/paypal/useragreement-full
 * Privacy policy: https://www.paypal.com/myaccount/privacy/privacyhub
