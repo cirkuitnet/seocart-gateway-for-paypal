@@ -13,7 +13,9 @@
 // - a fifth parameter (the amount) in the script's address: the loading test fails;
 // - the redirect followed to another origin: the redirect test fails;
 // - an `sdk` step taken with the PayPal part selected by submitting anyway: the other-part test fails;
-// - the order id written to sessionStorage: the storage test fails (and tests/Unit/IslandTest.php's scan).
+// - the order id written to sessionStorage: the storage test fails (and tests/Unit/IslandTest.php's scan);
+// - in giveUp(), a load that never answered kept as it is: the never-answering load's tests fail;
+// - in showCard(), the card fields made for a load the form gave up on: the late-arrival test fails.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -396,6 +398,75 @@ test('a script that fails to load is removed, the card shown unavailable, and th
 	choose(el, 'paypal');
 	choose(el, 'card');
 	assert.equal(head.children.length, 1, 'The next choice tries again.');
+});
+
+test('a script load that never answers is given up at 30 seconds, its element removed, and the next choice of the card loads it again, once', async () => {
+	const { island, head, timers } = load({ load: 'manual' });
+	const el = element('div');
+
+	island.mount(el, context());
+	choose(el, 'card');
+	await settle();
+
+	const [first] = head.children;
+
+	timers[0].run();
+	assert.match(text(el), /not available right now/);
+	assert.deepEqual(head.children, [], 'The script that never answered is removed.');
+
+	choose(el, 'paypal');
+	choose(el, 'card');
+	assert.equal(head.children.length, 1, 'One new request.');
+	assert.notEqual(head.children[0].attributes['data-namespace'], first.attributes['data-namespace'], 'Under a global of its own.');
+});
+
+test('after a script load that never answered, a new mount with the card chosen loads it again', async () => {
+	const { island, head, timers } = load({ load: 'manual' });
+	const el = element('div');
+
+	island.mount(el, context());
+	choose(el, 'card');
+	await settle();
+
+	const [first] = head.children;
+
+	timers[0].run();
+	island.mount(element('div'), context());
+	assert.equal(head.children.length, 1, 'One script on the page.');
+	assert.notEqual(head.children[0].attributes['data-namespace'], first.attributes['data-namespace'], 'A new request, for the new mount.');
+});
+
+test('the abandoned script arriving late renders nothing and throws nothing, and the new load renders the fields', async () => {
+	const unhandled = [];
+	const note = (reason) => unhandled.push(reason);
+	const { island, head, timers, sandbox, paypal, seen } = load({ load: 'manual' });
+	const el = element('div');
+
+	process.on('unhandledRejection', note);
+	island.mount(el, context());
+	choose(el, 'card');
+	await settle();
+
+	const [first] = head.children;
+
+	timers[0].run();
+	choose(el, 'paypal');
+	choose(el, 'card');
+
+	const [second] = head.children;
+
+	sandbox[first.attributes['data-namespace']] = paypal.paypal;
+	first.dispatch('load');
+	await settle();
+	assert.deepEqual([seen.made.length, seen.rendered.length], [0, 0], 'Nothing made or rendered for the late script.');
+
+	sandbox[second.attributes['data-namespace']] = paypal.paypal;
+	second.dispatch('load');
+	await settle();
+	process.off('unhandledRejection', note);
+	assert.equal(seen.rendered.length, 3, 'The new load renders the three fields.');
+	assert.doesNotMatch(text(el), /not available/);
+	assert.deepEqual(unhandled, []);
 });
 
 test('card fields not ready within 30 seconds, or an account PayPal finds not eligible, leave the card unavailable and the PayPal part working', async () => {

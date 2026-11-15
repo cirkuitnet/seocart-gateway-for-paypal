@@ -30,12 +30,11 @@
 	const MINIMUM_MINOR = 1;
 	const MAXIMUM_MINOR = 9999999;
 
-	// How long PayPal's card fields may take to be ready, in milliseconds, before the card is
-	// shown unavailable: they render in about a second on a broadband connection.
+	// How long PayPal's card fields may take to be ready, in milliseconds, before the card is shown
+	// unavailable.
 	const READY_MS = 30000;
 
-	// PayPal's ids by their shape: an order's, which PayPal adds to the address it sends the
-	// shopper back to as `token`, and a payer's, as `PayerID`.
+	// PayPal's ids by shape: an order's (`token` on the way back) and a payer's (`PayerID`).
 	const ORDER_ID = /^[A-Z0-9]{17}$/;
 	const PAYER_ID = /^[A-Z0-9]{13}$/;
 
@@ -67,8 +66,7 @@
 	const scripts = new Map();
 	const approved = new Set();
 
-	// An error of the island's, named for the console, which logs an island's error by its name
-	// alone; its message is one of the island's words, or empty.
+	// An error of the island's, named for the console, which logs its name alone.
 	function islandError( code, message = '' ) {
 		const error = new Error( message );
 
@@ -96,7 +94,8 @@
 
 	// Loads PayPal's script once per client id (public) and currency, and resolves with its global.
 	// Its address carries those two, the card fields and the intent to authorize, nothing else. A
-	// failed load is forgotten and its element removed: the next choice of the card tries again.
+	// load that failed, or never answered (abandon()), is forgotten and its element removed: the next
+	// choice of the card loads again, under a global of its own.
 	function loadPayPal( clientId, currency ) {
 		const key = `${ clientId } ${ currency }`;
 
@@ -104,6 +103,7 @@
 			const url = new URL( SDK );
 			const script = document.createElement( 'script' );
 			const global = `seocartPayPal${ ++loads }`;
+			const load = { key, script, answered: false };
 
 			url.searchParams.set( 'client-id', clientId );
 			url.searchParams.set( 'components', 'card-fields' );
@@ -112,23 +112,41 @@
 			script.src = url.href;
 			script.async = true;
 			script.setAttribute( 'data-namespace', global );
-			scripts.set(
-				key,
-				new Promise( ( resolve, reject ) => {
-					const fail = () => {
-						scripts.delete( key );
-						script.remove();
-						reject( islandError( 'paypal_script_failed' ) );
-					};
+			load.promise = new Promise( ( resolve, reject ) => {
+				const fail = () => {
+					forget( load );
+					reject( islandError( 'paypal_script_failed' ) );
+				};
 
-					script.addEventListener( 'load', () => ( window[ global ] ? resolve( window[ global ] ) : fail() ) );
-					script.addEventListener( 'error', fail );
-				} )
-			);
+				script.addEventListener( 'load', () => {
+					load.answered = true;
+					return window[ global ] ? resolve( window[ global ] ) : fail();
+				} );
+				script.addEventListener( 'error', fail );
+			} );
+			scripts.set( key, load );
 			document.head.append( script );
 		}
 
-		return scripts.get( key );
+		return scripts.get( key ).promise;
+	}
+
+	// Forgets a load and removes its element, leaving alone a newer load of the same key.
+	function forget( load ) {
+		if ( scripts.get( load.key ) === load ) {
+			scripts.delete( load.key );
+		}
+
+		load.script.remove();
+	}
+
+	// Gives up on the load of a client id and currency while it has not answered.
+	function abandon( clientId, currency ) {
+		const load = scripts.get( `${ clientId } ${ currency }` );
+
+		if ( load && ! load.answered ) {
+			forget( load );
+		}
 	}
 
 	// The checkout's billing address in PayPal's names, a member left out where the checkout has none.
@@ -195,7 +213,7 @@
 		// Which try at showing the card fields is the current one; null while none is.
 		let attempt = 0;
 		let showing = null;
-		// The order the card fields may submit, set only while action() submits them, and the action in flight.
+		// The order the card fields may submit, set only while action() submits them; the action in flight.
 		let step = null;
 		let pending = null;
 		let notice = null;
@@ -253,6 +271,7 @@
 		const giveUp = ( mine ) => {
 			if ( live && mine === showing ) {
 				showing = null;
+				abandon( ctx.settings.client_id, ctx.currency );
 				closeFields();
 				status.textContent = WORDS.unavailable;
 			}
@@ -271,6 +290,10 @@
 			status.textContent = WORDS.loading;
 			loadPayPal( ctx.settings.client_id, ctx.currency )
 				.then( ( paypal ) => {
+					if ( ! live || mine !== showing ) {
+						throw islandError( 'not_shown' );
+					}
+
 					const made = paypal.CardFields( {
 						// PayPal's script asks for the order only inside the submission action() makes.
 						createOrder: () => {
@@ -285,7 +308,7 @@
 						onCancel: () => answer( 'refused' ),
 					} );
 
-					if ( ! live || mine !== showing || ! made.isEligible() ) {
+					if ( ! made.isEligible() ) {
 						throw islandError( 'not_eligible' );
 					}
 
@@ -375,9 +398,9 @@
 			pending = { order, resolve, promise };
 			step = order;
 
-			// PayPal answers through onApprove before the submission resolves; a refused one may also
-			// answer through onError, and the first answer counts. A closed challenge answers through
-			// onCancel and leaves the submission unsettled. One that resolves unanswered fails.
+			// PayPal answers through onApprove before the submission resolves; a refusal through onError
+			// or a rejection, a closed challenge through onCancel; the first answer counts. One that
+			// resolves unanswered fails.
 			try {
 				fields.submit( Object.keys( address ).length ? { billingAddress: address } : undefined ).then(
 					() => order === step && settle( 'failed' ),
