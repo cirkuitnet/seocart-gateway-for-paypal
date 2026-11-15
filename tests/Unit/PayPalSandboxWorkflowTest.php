@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
 
 /**
- * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and writes a job's settings file, which holds the sandbox app's secret, only once the job has installed and built all it needs, in the workflow and in the script's steps it runs then. Each fact is planted broken, in memory, and found.
+ * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and, once a job's settings file is written, which holds the sandbox app's secret, runs only the script's own steps, which run only commands that cannot install, download or build. Each fact is planted broken, in memory, and found.
  *
  * Pins, the PHP set-up, Composer and the Node.js version are SEOCart's check of workflows'
  * (`sh ../seocart/bin/ci/check-workflows.sh .`), which the required gates run.
@@ -29,24 +29,82 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
  *   bracket form, `toJSON(secrets)`, the capitals and the shell comment are not found;
  * - in WorkflowFacts::secrets(), an expression ended at its first `}}`, quoted or not: the secrets
  *   after a quoted `}}` are not found;
- * - the checkout job's settings step put before the step that builds and installs its site; a
- *   dependency installed after the settings step of the webhooks job; `npm ci` in the script's
- *   configure(); the zip built in harvest_site(), a helper of the script's checkout(): the install
- *   test fails naming each.
+ * - in the file, after a job's settings step: the site's step; `npm i`; `pip install`; a set-up
+ *   step by its anchor; WordPress's download; a third party's action; and in the script, in the
+ *   functions those steps reach: `npm ci` and `npx --yes` in configure(), the site's step run
+ *   through filtered(): the test of the lists fails naming each.
  *
  * @since 0.2.0
  */
 final class PayPalSandboxWorkflowTest extends TestCase {
 
 	/**
-	 * What installs or builds code: a package manager installing or running a build, a toolchain's or a browser's set-up,
-	 * the zip builder, WordPress's download or install, a plugin's install, and the script's step that builds the checkout's site.
+	 * The script's steps a job may run once its settings file is written, as a step's `run:` names them: the
+	 * configuration of the site's gateway, the checkout's browser tests, the suite, a part's live tests and the clean-up.
 	 *
 	 * @since 0.2.0
 	 *
-	 * @var string
+	 * @var list<string>
 	 */
-	private const INSTALLS = '/\b(npm|yarn|pnpm) (ci|install|add|run)\b|\bplaywright install\b|\bcomposer (install|update|require)\b|setup-php-composer|actions\/setup-node|^- \*(setup-php|setup-node|prepare-wordpress|browser-dependencies|chromium)$|paypal-sandbox\.sh site\b|build-zip\.php|download-wordpress\.sh|\b(core|plugin) install\b/';
+	private const STEPS_AFTER_SETTINGS = array( 'configure', 'checkout', 'conformance', 'live three-d-secure', 'live webhooks', 'cleanup' );
+
+	/**
+	 * The keys such a step may have: none that runs an action, or gives a shell, a working directory or an environment.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	private const STEP_KEYS = array( 'name', 'id', 'if', 'run' );
+
+	/**
+	 * The only commands the functions those steps reach may run, as patterns of a simple command once its assignments,
+	 * its `env` and its redirections are put aside. None can install, download or build anything:
+	 *
+	 * - the shell's own words and the POSIX tools for text and files, which run no code they are not given;
+	 * - PHP running this checkout's own helpers, or the PHPUnit SEOCart's set-up installed before the settings step;
+	 * - SEOCart's conformance suite, which runs that PHPUnit;
+	 * - WP-CLI on the site, through site_wp(), for the gateway's configuration and the database's prefix and one read:
+	 *   never `core download` nor `plugin install`;
+	 * - jq, which rewrites the settings file;
+	 * - the Playwright the browser step installed, running the tests: never npx, which fetches a package it lacks;
+	 * - the site's file of its address and administrator, which the site step wrote, read into the shell;
+	 * - a wrapper's own run of the command its caller gave it, which is checked at the call (WRAPPERS).
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	private const COMMANDS = array(
+		'/^(\[|test|true|false|printf|echo|cat|grep|sed|sort|tail|tee|tr|cut|mkdir|touch|sleep|rm|mv|chmod|kill|date|umask|cd|set|export|shift|return|exit)( |$)/',
+		'/^php "\$(step_php|ext\/tests\/Integration\/Live\/cleanup\.php|core\/vendor\/bin\/phpunit)"( |$)/',
+		'/^sh "\$core\/bin\/ci\/extension\.sh" conformance( |$)/',
+		'/^wp --path="\$site_dir" "\$@"$/',
+		'/^site_wp (seocart gateway configure|db prefix|db query)( |$)/',
+		'/^jq( |$)/',
+		'/^node_modules\/\.bin\/playwright test( |$)/',
+		'/^\. "\$site_env"$/',
+	);
+
+	/**
+	 * The script's functions that run the command their caller gives them, by how many arguments of their own come first:
+	 * a call of one is checked as the command those arguments are followed by. Any other function that runs `"$@"` is a
+	 * violation, as its callers' commands would go unchecked.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var array<string, int>
+	 */
+	private const WRAPPERS = array( 'filtered' => 1 );
+
+	/**
+	 * The words that open a compound command or join its parts, put aside before a command is read.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	private const KEYWORDS = array( 'if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', 'esac', '!', '{', '}' );
 
 	/**
 	 * Tests that the workflow as committed keeps every fact.
@@ -74,43 +132,54 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * Tests that no job installs or builds anything once its settings file is written: neither a step of the workflow after the settings step, nor a step of bin/ci/paypal-sandbox.sh the job runs then.
+	 * Tests that, once a job's settings file is written, the job runs only the script's own steps, and those steps only the commands on the list.
 	 *
 	 * @since 0.2.0
 	 */
-	public function test_nothing_is_installed_or_built_once_the_settings_file_is_written(): void {
-		$this->assertSame( array(), self::installsAfterSettings( self::lines(), self::script() ) );
+	public function test_only_the_listed_steps_and_commands_run_once_the_settings_file_is_written(): void {
+		$this->assertSame( array(), self::afterSettings( self::lines(), self::script() ) );
 	}
 
 	/**
-	 * Tests that an install or a build after a job's settings step is found, in the workflow or in the script.
+	 * Tests that a step, an action or a command off the lists after a job's settings step is found, in the workflow or in the script.
 	 *
 	 * @since 0.2.0
 	 *
-	 * @dataProvider installsPlanted
+	 * @dataProvider afterSettingsPlanted
 	 *
 	 * @param string   $expected Text of the violation expected.
 	 * @param \Closure $plant    The plant: the workflow's and the script's lines in, both broken out.
 	 */
-	public function test_an_install_after_the_settings_file_is_found( string $expected, \Closure $plant ): void {
+	public function test_a_step_or_a_command_off_the_lists_after_the_settings_file_is_found( string $expected, \Closure $plant ): void {
 		[ $lines, $script ] = $plant( self::lines(), self::script() );
 
-		$this->assertStringContainsString( $expected, implode( "\n", self::installsAfterSettings( $lines, $script ) ) );
+		$this->assertStringContainsString( $expected, implode( "\n", self::afterSettings( $lines, $script ) ) );
 	}
 
 	/**
-	 * Returns one plant per way an install or a build could come after a settings file.
+	 * Returns one plant per way something off the lists could run after a settings file is written.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @return array<string, array{string, \Closure}> Each violation expected and its plant, by name.
 	 */
-	public static function installsPlanted(): array {
+	public static function afterSettingsPlanted(): array {
+		$script = static fn( string $after, string $line ): \Closure => static fn( array $lines, array $script ): array => array( $lines, self::after( $script, $after, $line ) );
+		$step   = static fn( string $after, string $line ): \Closure => static fn( array $lines, array $script ): array => array( self::after( $lines, $after, $line ), $script );
+
 		return array(
-			'the settings before the site is built' => array( 'The job checkout installs or builds after its settings step: `run: sh ext/bin/ci/paypal-sandbox.sh site`.', static fn( array $lines, array $script ): array => array( self::after( $lines, '/^            - \*browser-unit$/', '            - *settings' ), $script ) ),
-			'a dependency installed after them'     => array( 'The job webhooks installs or builds after its settings step: `- run: composer install --working-dir=seocart`.', static fn( array $lines, array $script ): array => array( self::after( $lines, '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - run: composer install --working-dir=seocart' ), $script ) ),
-			'a step run after them that installs'   => array( 'The step configure, which the job checkout runs after its settings step, installs or builds: `(cd "$core" && npm ci)`.', static fn( array $lines, array $script ): array => array( $lines, self::after( $script, '/^configure\(\) \{$/', "\t(cd \"\$core\" && npm ci)" ) ) ),
-			'a helper of such a step that builds'   => array( 'The step checkout, which the job checkout runs after its settings step, installs or builds: `php "$core/bin/build-zip.php" --plugin="$ext"`.', static fn( array $lines, array $script ): array => array( $lines, self::after( $script, '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ) ),
+			'the settings before the site is built'   => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh ext/bin/ci/paypal-sandbox.sh site`.', $step( '/^            - \*browser-unit$/', '            - *settings' ) ),
+			'composer install after them'             => array( 'The job webhooks runs, after its settings step, a command that is not one of the script\'s steps: `run: composer install --working-dir=seocart`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - run: composer install --working-dir=seocart' ) ),
+			'npm i under its alias'                   => array( 'The job live-conformance runs, after its settings step, a command that is not one of the script\'s steps: `run: npm i --prefix ext/tests/browser`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh conformance$/', '            - run: npm i --prefix ext/tests/browser' ) ),
+			'pip install'                             => array( 'The job three-d-secure runs, after its settings step, a command that is not one of the script\'s steps: `run: pip install requests`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live three-d-secure$/', '            - run: pip install requests' ) ),
+			'a set-up step by its anchor'             => array( 'The job webhooks runs `- *setup-node` after its settings step: only the script\'s own steps may follow it.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh live webhooks$/', '            - *setup-node' ) ),
+			'WordPress downloaded'                    => array( 'The job checkout runs, after its settings step, a command that is not one of the script\'s steps: `run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"' ) ),
+			'an action of a third party'              => array( 'The job checkout uses an action after its settings step: `uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567' ) ),
+			'npm ci in configure()'                   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npm ci`.', $script( '/^configure\(\) \{$/', "\t(cd \"\$core\" && npm ci)" ) ),
+			'npx fetching a package in configure()'   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npx --yes cowsay hello`.', $script( '/^configure\(\) \{$/', "\tnpx --yes cowsay hello" ) ),
+			'the zip built in harvest_site()'         => array( 'The step checkout, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
+			'site() run through filtered()'           => array( 'The step checkout, which the job checkout runs after its settings step, runs in site() a command not on the list: `npm ci`.', $script( '/^checkout\(\) \{$/', "\tfiltered \"\$work/x.out\" site" ) ),
+			'a pass-through of its own'               => array( 'The step checkout, which the job checkout runs after its settings step, runs in checkout() a command not on the list: `heads npm ci`.', static fn( array $lines, array $script ): array => array( $lines, self::after( self::after( $script, '/^checkout\(\) \{$/', "\theads npm ci" ), '/^heads\(\) \{$/', "\t\"\$@\"" ) ) ),
 		);
 	}
 
@@ -199,49 +268,45 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * Returns every install or build that runs once a job's settings file is written: a step of the job after its settings step that installs or builds, and a line that does in a step of bin/ci/paypal-sandbox.sh the job runs after it, or in a function of the script that step calls.
+	 * Returns every way a job runs, once its settings file is written, anything but the script's own steps, and every command those steps reach in bin/ci/paypal-sandbox.sh that is not on the list.
 	 *
 	 * The settings file holds the sandbox app's secret, so it is written last: a package's install
-	 * script, a build or a downloaded browser runs with the file readable otherwise.
+	 * script, a build, a downloaded browser or an action would run with the file readable otherwise.
+	 * The lists are closed: after the settings step a job may run only the script's steps
+	 * (STEPS_AFTER_SETTINGS) and the clean-up's anchor, with no action at all; and the functions
+	 * those steps reach, followed through every call and every function named as an argument, may
+	 * run only the commands COMMANDS allows, a wrapper's command checked at its call (WRAPPERS).
 	 *
 	 * @since 0.2.0
 	 *
 	 * @param string[] $lines  The workflow's lines.
 	 * @param string[] $script The lines of bin/ci/paypal-sandbox.sh.
-	 * @return list<string> The violations; none when nothing installs or builds then.
+	 * @return list<string> The violations; none when nothing but the allowed runs then.
 	 * @phpstan-param list<string> $lines
 	 * @phpstan-param list<string> $script
 	 */
-	private static function installsAfterSettings( array $lines, array $script ): array {
+	private static function afterSettings( array $lines, array $script ): array {
 		$violations = array();
 		$steps      = array();
-		$job        = null;
-		$after      = false;
 
-		foreach ( $lines as $line ) {
-			if ( 1 === preg_match( '/^    ([a-z][a-z0-9-]*):$/', $line, $match ) ) {
-				$job   = $match[1];
-				$after = false;
-				continue;
-			}
+		foreach ( self::jobSteps( $lines ) as $job => $items ) {
+			$after = false;
 
-			$text = trim( $line );
+			foreach ( $items as $item ) {
+				if ( in_array( $item['alias'], array( '*settings', '&settings' ), true ) ) {
+					$after = true;
+					continue;
+				}
 
-			if ( null === $job || '' === $text || str_starts_with( $text, '#' ) ) {
-				continue;
-			}
+				if ( ! $after ) {
+					continue;
+				}
 
-			if ( 1 === preg_match( '/^- [*&]settings$/', $text ) ) {
-				$after = true;
-				continue;
-			}
+				$step = self::scriptStep( $job, $item, $violations );
 
-			if ( $after && 1 === preg_match( self::INSTALLS, $text ) ) {
-				$violations[] = sprintf( 'The job %1$s installs or builds after its settings step: `%2$s`.', $job, $text );
-			}
-
-			if ( $after && 1 === preg_match( '/paypal-sandbox\.sh ([a-z-]+)/', $text, $match ) ) {
-				$steps[ $match[1] ][ $job ] = true;
+				if ( null !== $step ) {
+					$steps[ $step ][ $job ] = true;
+				}
 			}
 		}
 
@@ -255,22 +320,315 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		}
 
 		foreach ( $steps as $step => $jobs ) {
-			foreach ( self::reached( $dispatch[ $step ] ?? '', $functions ) as $function ) {
-				foreach ( $functions[ $function ] as $line ) {
-					$text = trim( $line );
+			foreach ( self::reached( $dispatch[ (string) strtok( $step, ' ' ) ] ?? '', $functions ) as $function ) {
+				foreach ( self::commands( $functions[ $function ] ) as $words ) {
+					$problem = self::refusal( $words, $function, $functions );
 
-					if ( '' === $text || str_starts_with( $text, '#' ) || 1 !== preg_match( self::INSTALLS, $text ) ) {
-						continue;
-					}
-
-					foreach ( array_keys( $jobs ) as $job ) {
-						$violations[] = sprintf( 'The step %1$s, which the job %2$s runs after its settings step, installs or builds: `%3$s`.', $step, $job, $text );
+					foreach ( null === $problem ? array() : array_keys( $jobs ) as $job ) {
+						$violations[] = sprintf( 'The step %1$s, which the job %2$s runs after its settings step, runs in %3$s() %4$s.', $step, $job, $function, $problem );
 					}
 				}
 			}
 		}
 
-		return $violations;
+		return array_values( array_unique( $violations ) );
+	}
+
+	/**
+	 * Returns the script's step a job's step after its settings step runs, or null after noting why it is not one.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string                                                                         $job        The job.
+	 * @param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item       The step.
+	 * @param string[]                                                                       $violations The violations, noted into.
+	 * @return string|null The script's step, such as `configure` or `live webhooks`.
+	 * @phpstan-param list<string> $violations
+	 */
+	private static function scriptStep( string $job, array $item, array &$violations ): ?string {
+		if ( null !== $item['alias'] && str_starts_with( $item['alias'], '*' ) ) {
+			if ( '*cleanup' === $item['alias'] ) {
+				return 'cleanup';
+			}
+
+			$violations[] = sprintf( 'The job %1$s runs `- %2$s` after its settings step: only the script\'s own steps may follow it.', $job, $item['alias'] );
+
+			return null;
+		}
+
+		if ( isset( $item['keys']['uses'] ) ) {
+			$violations[] = sprintf( 'The job %1$s uses an action after its settings step: `uses: %2$s`.', $job, $item['keys']['uses'] );
+
+			return null;
+		}
+
+		foreach ( array_diff( array_keys( $item['keys'] ), self::STEP_KEYS ) as $key ) {
+			$violations[] = sprintf( 'The job %1$s gives a step after its settings step the key %2$s: only %3$s.', $job, $key, implode( ', ', self::STEP_KEYS ) );
+		}
+
+		$run = $item['keys']['run'] ?? '';
+
+		if ( isset( $item['deep']['run'] ) || 1 !== preg_match( '/^sh ext\/bin\/ci\/paypal-sandbox\.sh (.+)$/D', $run, $match ) || ! in_array( $match[1], self::STEPS_AFTER_SETTINGS, true ) ) {
+			$violations[] = sprintf( 'The job %1$s runs, after its settings step, a command that is not one of the script\'s steps: `run: %2$s`.', $job, $run );
+
+			return null;
+		}
+
+		return $match[1];
+	}
+
+	/**
+	 * Returns why a command of a function the steps reach is not allowed, or null when it is.
+	 *
+	 * A call of a wrapper is the command it is given (WRAPPERS); a call of another function of the
+	 * script that runs `"$@"`, such as site_wp(), must itself be on the list; a call of any other
+	 * function is allowed, as reached() follows it and its own commands are read.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[]                    $words     The command's words.
+	 * @param string                      $function  The function it is in.
+	 * @param array<string, list<string>> $functions The script's functions.
+	 * @return string|null Why not; null when allowed.
+	 * @phpstan-param list<string> $words
+	 */
+	private static function refusal( array $words, string $function, array $functions ): ?string {
+		$words = self::bare( $words );
+
+		if ( array() === $words ) {
+			return null;
+		}
+
+		$name    = $words[0];
+		$command = implode( ' ', $words );
+
+		if ( isset( self::WRAPPERS[ $name ] ) ) {
+			return self::refusal( array_slice( $words, 1 + self::WRAPPERS[ $name ] ), $function, $functions );
+		}
+
+		if ( '"$@"' === $name ) {
+			return isset( self::WRAPPERS[ $function ] ) ? null : sprintf( 'the command its caller gives it (`%s`), though it is no wrapper whose calls are checked', $command );
+		}
+
+		if ( isset( $functions[ $name ] ) && ! self::passesThrough( $functions[ $name ] ) ) {
+			return null;
+		}
+
+		foreach ( self::COMMANDS as $pattern ) {
+			if ( 1 === preg_match( $pattern, $command ) ) {
+				return null;
+			}
+		}
+
+		return sprintf( 'a command not on the list: `%s`', $command );
+	}
+
+	/**
+	 * Tells whether a function runs the command its caller gives it, `"$@"`.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $lines The function's lines.
+	 * @return bool True when it does.
+	 * @phpstan-param list<string> $lines
+	 */
+	private static function passesThrough( array $lines ): bool {
+		foreach ( self::commands( $lines ) as $words ) {
+			if ( in_array( '"$@"', $words, true ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns a command's words without what does not name the command: the words that open or join a compound command, assignments, `env`, and redirections.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $words The words.
+	 * @return list<string> The words from the command's name on.
+	 * @phpstan-param list<string> $words
+	 */
+	private static function bare( array $words ): array {
+		$words = array_values( array_filter( $words, static fn( string $word ): bool => 1 !== preg_match( '/^\d*[<>]/', $word ) ) );
+
+		while ( array() !== $words && ( in_array( $words[0], self::KEYWORDS, true ) || 'env' === $words[0] || 1 === preg_match( '/^[A-Za-z_][A-Za-z0-9_]*=/', $words[0] ) ) ) {
+			array_shift( $words );
+		}
+
+		return $words;
+	}
+
+	/**
+	 * Returns the simple commands of a function's lines, each as its words, quotes kept: a command
+	 * substitution `$( … )` is a command of its own, an arithmetic expansion a number, a case's
+	 * patterns and the heads of `case` and `for` no command.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $lines The lines.
+	 * @return list<list<string>> The commands.
+	 * @phpstan-param list<string> $lines
+	 */
+	private static function commands( array $lines ): array {
+		$text = (string) preg_replace( '/\$\(\([^()]*\)\)/', '0', (string) preg_replace( '/\\\\\n/', ' ', implode( "\n", $lines ) ) );
+
+		return self::lex( $text );
+	}
+
+	/**
+	 * Splits shell text into simple commands: words are split on blanks, commands on newlines, `;`, `&`, `|`, `(` and `)`, outside quotes.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $text The text.
+	 * @return list<list<string>> The commands.
+	 */
+	private static function lex( string $text ): array {
+		$commands = array();
+		$words    = array();
+		$word     = null;
+		$cases    = 0;
+		$length   = strlen( $text );
+
+		for ( $at = 0; $at <= $length; $at++ ) {
+			$char = $text[ $at ] ?? "\n";
+			$two  = substr( $text, $at, 2 );
+
+			if ( '$(' === $two ) {
+				$close    = self::closing( $text, $at + 2 );
+				$commands = array_merge( $commands, self::lex( substr( $text, $at + 2, $close - $at - 2 ) ) );
+				$word    .= '$(…)';
+				$at       = $close;
+			} elseif ( "'" === $char ) {
+				$close = strpos( $text, "'", $at + 1 );
+				$close = false === $close ? $length : $close;
+				$word .= substr( $text, $at, $close - $at + 1 );
+				$at    = $close;
+			} elseif ( '"' === $char ) {
+				[ $quoted, $inner, $at ] = self::doubleQuoted( $text, $at );
+				$word                   .= $quoted;
+				$commands                = array_merge( $commands, $inner );
+			} elseif ( '\\' === $char || '${' === $two ) {
+				$close = '\\' === $char ? $at + 1 : (int) strpos( $text, '}', $at );
+				$word .= substr( $text, $at, $close - $at + 1 );
+				$at    = $close;
+			} elseif ( '#' === $char && null === $word ) {
+				$close = strpos( $text, "\n", $at );
+				$at    = ( false === $close ? $length : $close ) - 1;
+			} elseif ( '>' === $char || '<' === $char ) {
+				$word .= $char . ( '&' === ( $text[ $at + 1 ] ?? '' ) ? $text[ ++$at ] : '' );
+			} elseif ( ' ' === $char || "\t" === $char ) {
+				self::endWord( $word, $words );
+			} elseif ( in_array( $char, array( "\n", ';', '&', '|', '(', ')' ), true ) ) {
+				self::endWord( $word, $words );
+				self::endCommand( $words, $commands, $cases, ')' === $char );
+			} else {
+				$word .= $char;
+			}
+		}
+
+		return $commands;
+	}
+
+	/**
+	 * Reads a double-quoted text from its opening quote: the text, the commands of the substitutions in it, and where it ends.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $text The text.
+	 * @param int    $at   Where its opening quote is.
+	 * @return array{string, list<list<string>>, int} The quoted text, its commands, its closing quote's place.
+	 */
+	private static function doubleQuoted( string $text, int $at ): array {
+		$quoted   = '"';
+		$commands = array();
+
+		for ( ++$at; $at < strlen( $text ) && '"' !== $text[ $at ]; $at++ ) {
+			if ( '\\' === $text[ $at ] ) {
+				$quoted .= substr( $text, $at++, 2 );
+			} elseif ( '$(' === substr( $text, $at, 2 ) ) {
+				$close    = self::closing( $text, $at + 2 );
+				$commands = array_merge( $commands, self::lex( substr( $text, $at + 2, $close - $at - 2 ) ) );
+				$quoted  .= '$(…)';
+				$at       = $close;
+			} else {
+				$quoted .= $text[ $at ];
+			}
+		}
+
+		return array( $quoted . '"', $commands, $at );
+	}
+
+	/**
+	 * Returns where the `)` that closes a command substitution is, from the text just inside it.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $text The text.
+	 * @param int    $at   Where the substitution's text begins.
+	 * @return int Its closing parenthesis's place; the text's end when it has none.
+	 */
+	private static function closing( string $text, int $at ): int {
+		for ( $depth = 1; $at < strlen( $text ); $at++ ) {
+			$char = $text[ $at ];
+
+			if ( "'" === $char ) {
+				$close = strpos( $text, "'", $at + 1 );
+				$at    = false === $close ? strlen( $text ) : $close;
+			} elseif ( '\\' === $char ) {
+				++$at;
+			} elseif ( '(' === $char ) {
+				++$depth;
+			} elseif ( ')' === $char && 0 === --$depth ) {
+				return $at;
+			}
+		}
+
+		return strlen( $text );
+	}
+
+	/**
+	 * Ends the word being read, when there is one.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string|null $word  The word; null between words.
+	 * @param string[]    $words The command's words, added to.
+	 * @phpstan-param list<string> $words
+	 */
+	private static function endWord( ?string &$word, array &$words ): void {
+		if ( null !== $word ) {
+			$words[] = $word;
+			$word    = null;
+		}
+	}
+
+	/**
+	 * Ends the command being read: a case's pattern (one word before `)` inside a `case`) and the heads of `case` and `for` are dropped.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[]           $words    The command's words, emptied.
+	 * @param list<list<string>> $commands The commands, added to.
+	 * @param int                $cases    How many `case` commands are open.
+	 * @param bool               $closing  Whether a `)` ends it.
+	 * @phpstan-param list<string> $words
+	 */
+	private static function endCommand( array &$words, array &$commands, int &$cases, bool $closing ): void {
+		$head = self::bare( $words )[0] ?? null;
+
+		if ( 'case' === $head ) {
+			++$cases;
+		} elseif ( 'esac' === ( $words[0] ?? null ) ) {
+			--$cases;
+		} elseif ( 'for' !== $head && ! ( $closing && $cases > 0 && 1 === count( $words ) ) && array() !== $words ) {
+			$commands[] = $words;
+		}
+
+		$words = array();
 	}
 
 	/**
@@ -301,9 +659,9 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	}
 
 	/**
-	 * Returns a function of the script and every function of the script it calls, at any depth: a
-	 * name in a command's place, at a line's start or after `;`, `&&`, `||`, `|`, `(` or `$(`, not a
-	 * word of a message.
+	 * Returns a function of the script and every function of the script it reaches, at any depth: one
+	 * it calls, and one it names as an unquoted word anywhere in a command, as a wrapper's argument
+	 * or otherwise.
 	 *
 	 * @since 0.2.0
 	 *
@@ -319,16 +677,88 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			$name      = array_shift( $queue );
 			$reached[] = $name;
 
-			preg_match_all( '/(?:^|[;&|(])\s*([a-z_]+)\b/m', implode( "\n", $functions[ $name ] ), $words );
-
-			foreach ( array_unique( $words[1] ) as $word ) {
-				if ( isset( $functions[ $word ] ) && ! in_array( $word, $reached, true ) && ! in_array( $word, $queue, true ) ) {
-					$queue[] = $word;
+			foreach ( self::commands( $functions[ $name ] ) as $words ) {
+				foreach ( $words as $word ) {
+					if ( isset( $functions[ $word ] ) && ! in_array( $word, $reached, true ) && ! in_array( $word, $queue, true ) ) {
+						$queue[] = $word;
+					}
 				}
 			}
 		}
 
 		return $reached;
+	}
+
+	/**
+	 * Returns a job's steps, each as its alias or anchor, its keys and their first lines, and the keys whose value goes on to deeper lines; by job.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $lines The workflow's lines.
+	 * @return array<string, list<array{alias: ?string, keys: array<string, string>, deep: array<string, bool>}>> The steps.
+	 * @phpstan-param list<string> $lines
+	 */
+	private static function jobSteps( array $lines ): array {
+		$jobs = array();
+		$job  = null;
+		$key  = null;
+
+		foreach ( $lines as $line ) {
+			if ( 1 === preg_match( '/^    ([a-z][a-z0-9-]*):\s*$/', $line, $match ) ) {
+				$job          = $match[1];
+				$jobs[ $job ] = array();
+				continue;
+			}
+
+			if ( null === $job || '' === trim( $line ) || str_starts_with( ltrim( $line ), '#' ) ) {
+				continue;
+			}
+
+			if ( 1 === preg_match( '/^            - (?:([*&][a-z0-9-]+)\s*)?(.*)$/', $line, $match ) ) {
+				$jobs[ $job ][] = array(
+					'alias' => '' === $match[1] ? null : $match[1],
+					'keys'  => array(),
+					'deep'  => array(),
+				);
+				$key            = '' === $match[2] ? null : self::stepKey( $jobs[ $job ][ count( $jobs[ $job ] ) - 1 ], $match[2] );
+				continue;
+			}
+
+			if ( array() === $jobs[ $job ] ) {
+				continue;
+			}
+
+			$at = count( $jobs[ $job ] ) - 1;
+
+			if ( 1 === preg_match( '/^              ([^ ].*)$/', $line, $match ) ) {
+				$key = self::stepKey( $jobs[ $job ][ $at ], $match[1] );
+			} elseif ( null !== $key && str_starts_with( $line, '               ' ) ) {
+				$jobs[ $job ][ $at ]['deep'][ $key ] = true;
+			}
+		}
+
+		return $jobs;
+	}
+
+	/**
+	 * Reads one `key: value` line of a step into it, and returns the key.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array{alias: ?string, keys: array<string, string>, deep: array<string, bool>} $item The step, read into.
+	 * @param string                                                                         $text The line, without its indentation.
+	 * @return string The key; `?` for a line that is no key.
+	 */
+	private static function stepKey( array &$item, string $text ): string {
+		if ( 1 !== preg_match( '/^([A-Za-z0-9_-]+):\s*(.*)$/', $text, $match ) ) {
+			$item['keys']['?'] = $text;
+
+			return '?';
+		}
+
+		$item['keys'][ $match[1] ] = $match[2];
+
+		return $match[1];
 	}
 
 	/**

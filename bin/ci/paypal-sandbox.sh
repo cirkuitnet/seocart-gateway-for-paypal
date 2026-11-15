@@ -271,7 +271,8 @@ policy() {
 # Runs the checkout's browser tests of one group against the site, its output filtered and kept:
 # browser_tests <group> <kept output>. The site's address and administrator, and the settings
 # file's path, which the tests give PHP to read the public settings from: none is an argument a
-# process list would show.
+# process list would show. Playwright is run as the browser step installed it, never through npx,
+# which would fetch a package it did not find.
 browser_tests() {
 	(
 		cd "$ext/tests/browser"
@@ -281,7 +282,7 @@ browser_tests() {
 		set +a
 		SEOCART_TAPE_SETTINGS=$settings
 		export SEOCART_TAPE_SETTINGS
-		filtered "$2" npx playwright test --config playwright.config.mjs --forbid-only --grep "@$1"
+		filtered "$2" node_modules/.bin/playwright test --config playwright.config.mjs --forbid-only --grep "@$1"
 	)
 }
 
