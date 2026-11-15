@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
     seocart-main:
-        uses: cirkuitnet/seocart/.github/workflows/extension-ci.yml@54537b009b8e9825a493d12f045db43521d7fa00
+        uses: cirkuitnet/seocart/.github/workflows/extension-ci.yml@258cb854885e83dad8b44209ba9a8a483dadd7ff
         with:
             extension-type: payments
             core-ref: main
