@@ -33,10 +33,18 @@ use SEOCart\GatewayForPayPal\Tests\Support\GatewayTestCase;
  * policy (a result naming no shift is declined under `require`), then the authorization under
  * `{uuid}:authorize`.
  *
+ * PayPal's card fields also complete an order created to be paid with PayPal, which asks for no
+ * check: the sandbox approves it with the card on it and no check result, under any policy of the
+ * store's. So under `SCA_ALWAYS` an approved card with no result is judged as a result naming no
+ * liability shift; under `SCA_WHEN_REQUIRED` it is authorized, as a card PayPal approved with no
+ * check needed; a payment by PayPal is authorized under either.
+ *
  * Planted violations, each shown red and removed:
  * - any card on a `CREATED` order taken as finished: the mid-challenge test fails, as the order is
  *   authorized while the shopper is still answering the bank;
- * - a check still requiring the challenge taken as finished: the challenge-required test fails.
+ * - a check still requiring the challenge taken as finished: the challenge-required test fails;
+ * - a card with no result authorized under `SCA_ALWAYS` as under the other policy: the unchecked
+ *   card's test fails, as the card is authorized under `require`.
  *
  * @since 0.2.0
  */
@@ -218,6 +226,79 @@ final class CardFieldsQueryTest extends GatewayTestCase {
 
 		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Declined, Fixtures::ORDER_ID, 'amount_changed' );
 		$this->assertSame( array( 'GET ' . self::orderPath() ), $this->context->paypal->sent() );
+	}
+
+	/**
+	 * Tests an approved card with no check result under `SCA_ALWAYS`, as PayPal's card fields leave an order created to be paid with PayPal: declined under `require` with nothing sent but the read, authorized under `accept` with the missing shift logged.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_under_sca_always_a_card_with_no_check_follows_the_policy(): void {
+		$this->context->settings['test']['sca_policy'] = 'SCA_ALWAYS';
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( self::unchecked() ) );
+
+		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Declined, Fixtures::ORDER_ID, 'liability_shift_not_possible' );
+		$this->assertSame( array( 'GET ' . self::orderPath() ), $this->context->paypal->sent(), 'Under require, nothing is authorized.' );
+
+		$this->context->log->lines                                 = array();
+		$this->context->settings['test']['liability_shift_policy'] = 'accept';
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( self::unchecked() ) );
+		$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 201, Fixtures::text( 'order-authorized' ) );
+
+		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Approved, Fixtures::AUTHORIZATION_ID );
+
+		$logged = $this->context->log->contextOf( 'paypal.liability_shift' ) ?? array();
+
+		$this->assertSame( array( true, null, 'accept' ), array( array_key_exists( 'liability_shift', $logged ), $logged['liability_shift'] ?? null, $logged['policy'] ?? null ), 'The missing shift is logged as none.' );
+	}
+
+	/**
+	 * Tests the same card under `SCA_WHEN_REQUIRED`: authorized under either policy, nothing logged, as before the store asked for every check.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_under_sca_when_required_a_card_with_no_check_is_authorized(): void {
+		foreach ( array( 'require', 'accept' ) as $policy ) {
+			$this->context->settings['test']['liability_shift_policy'] = $policy;
+			$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( self::unchecked() ) );
+			$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 201, Fixtures::text( 'order-authorized' ) );
+
+			$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Approved, Fixtures::AUTHORIZATION_ID );
+		}
+
+		$this->assertNull( $this->context->log->contextOf( 'paypal.liability_shift' ) );
+	}
+
+	/**
+	 * Tests a payment by PayPal under `SCA_ALWAYS` and `require`: authorized, as no card is checked when the shopper pays with PayPal.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_under_sca_always_a_paypal_payment_is_authorized(): void {
+		$wallet                   = Fixtures::object( 'order-approved' );
+		$wallet['payment_source'] = array( 'paypal' => array( 'account_status' => 'VERIFIED' ) );
+
+		$this->context->settings['test']['sca_policy'] = 'SCA_ALWAYS';
+		$this->context->paypal->answer( 'GET', self::orderPath(), 200, Fixtures::encode( $wallet ) );
+		$this->context->paypal->answer( 'POST', self::orderPath( '/authorize' ), 201, Fixtures::text( 'order-authorized' ) );
+
+		$this->assertResult( $this->gateway->query( self::query() ), Operation::Authorize, Outcome::Approved, Fixtures::AUTHORIZATION_ID );
+		$this->assertNull( $this->context->log->contextOf( 'paypal.liability_shift' ) );
+	}
+
+	/**
+	 * Returns an approved order with a card and no check result: as PayPal's card fields leave an order created to be paid with PayPal.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return array<mixed> The order.
+	 */
+	private static function unchecked(): array {
+		$order = Fixtures::object( 'order-approved' );
+
+		unset( $order['payment_source']['card']['authentication_result'] );
+
+		return $order;
 	}
 
 	/**

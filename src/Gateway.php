@@ -918,10 +918,14 @@ final class Gateway implements PaymentGateway {
 	/**
 	 * Tells whether the liability policy lets an approved order be authorized.
 	 *
-	 * A payment by PayPal, and a card that carries no 3-D Secure result at all, are authorized. A
-	 * card whose result moved the liability to the bank (`YES`, `POSSIBLE`) is too; otherwise (`NO`,
+	 * A payment by PayPal is authorized, and so is a card that carries no 3-D Secure result at all,
+	 * unless the mode asks the bank to confirm every card payment (`SCA_ALWAYS`). A card whose result
+	 * moved the liability to the bank (`YES`, `POSSIBLE`) is authorized too; otherwise (`NO`,
 	 * `UNKNOWN`, or a result that names no liability shift, as one PayPal ran without the bank) the
-	 * policy `require` declines it and `accept` authorizes it, logging the result's word.
+	 * policy `require` declines it and `accept` authorizes it, logging the result's word. Under
+	 * `SCA_ALWAYS` a card without a result is judged as one whose result names no shift: PayPal's
+	 * card fields can complete an order created to be paid with PayPal, which asked for no check, and
+	 * PayPal then approves the card with the bank's check skipped.
 	 *
 	 * @since 0.2.0
 	 *
@@ -934,7 +938,11 @@ final class Gateway implements PaymentGateway {
 		$checked = Results::cardCheck( $order );
 
 		if ( null === $checked ) {
-			return true;
+			if ( 'SCA_ALWAYS' !== $this->scaPolicy( $mode ) || ! Fields::isObject( $order, 'payment_source', 'card' ) ) {
+				return true;
+			}
+
+			$checked = array();
 		}
 
 		$shift = PayPalCodes::liabilityShift( Fields::text( $checked, 'liability_shift' ) );
