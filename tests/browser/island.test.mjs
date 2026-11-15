@@ -622,13 +622,13 @@ test('a step of the other part selects that part, says so, and fails: no link fo
 	assert.equal(radios(card.el).find(({ value }) => value === 'paypal').checked, true, 'The PayPal part is selected.');
 	assert.deepEqual(notices(card.el).map(text), ['Finish the payment you started, or try again later.']);
 
-	// The PayPal part answered an sdk step, kept from an earlier placement by card.
-	const { island, seen } = load();
-	const el = element('div');
-	const handle = island.mount(el, context());
+	// The PayPal part answered an sdk step, kept from an earlier placement by card: the card fields are ready, as the
+	// shopper chose the card before choosing PayPal again.
+	const { el, handle, seen } = await cardForm();
 
+	choose(el, 'paypal');
 	assert.equal(await handle.action(SDK_STEP, RESUME), 'failed');
-	assert.equal(seen.submissions.length, 0, 'Nothing submitted.');
+	assert.equal(seen.submissions.length, 0, 'Nothing submitted, though the card fields are there.');
 	assert.equal(radios(el).find(({ value }) => value === 'card').checked, true, 'The card part is selected.');
 	assert.deepEqual(notices(el).map(text), ['Finish the payment you started, or try again later.']);
 });
