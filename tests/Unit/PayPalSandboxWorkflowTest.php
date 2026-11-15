@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
 
 /**
- * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and, once a job's settings file is written, which holds the sandbox app's secret, runs only the script's own steps, which run only commands that cannot install, download or build. Each fact is planted broken, in memory, and found.
+ * The PayPal sandbox workflow starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to a step's env, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, and has as its jobs and as the choices of its parts input the parts the verdict judges and no other, and, once a job's settings file is written, which holds the sandbox app's secret, runs only the script's own steps, which run only commands that cannot install, download or build; and its clean-up lists the checkout site's orders before it voids. Each fact is planted broken, in memory, and found.
  *
  * Pins, the PHP set-up, Composer and the Node.js version are SEOCart's check of workflows'
  * (`sh ../seocart/bin/ci/check-workflows.sh .`), which the required gates run.
@@ -32,7 +32,8 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\WorkflowFacts;
  * - in the file, after a job's settings step: the site's step; `npm i`; `pip install`; a set-up
  *   step by its anchor; WordPress's download; a third party's action; and in the script, in the
  *   functions those steps reach: `npm ci` and `npx --yes` in configure(), the site's step run
- *   through filtered(): the test of the lists fails naming each.
+ *   through filtered(): the test of the lists fails naming each;
+ * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails.
  *
  * @since 0.2.0
  */
@@ -177,10 +178,28 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			'an action of a third party'              => array( 'The job checkout uses an action after its settings step: `uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567`.', $step( '/^              run: sh ext\/bin\/ci\/paypal-sandbox.sh checkout$/', '            - uses: some-org/some-action@0123456789abcdef0123456789abcdef01234567' ) ),
 			'npm ci in configure()'                   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npm ci`.', $script( '/^configure\(\) \{$/', "\t(cd \"\$core\" && npm ci)" ) ),
 			'npx fetching a package in configure()'   => array( 'The step configure, which the job checkout runs after its settings step, runs in configure() a command not on the list: `npx --yes cowsay hello`.', $script( '/^configure\(\) \{$/', "\tnpx --yes cowsay hello" ) ),
-			'the zip built in harvest_site()'         => array( 'The step checkout, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
+			'the zip built in harvest_site()'         => array( 'The step cleanup, which the job checkout runs after its settings step, runs in harvest_site() a command not on the list: `php "$core/bin/build-zip.php" --plugin="$ext"`.', $script( '/^harvest_site\(\) \{$/', "\tphp \"\$core/bin/build-zip.php\" --plugin=\"\$ext\"" ) ),
 			'site() run through filtered()'           => array( 'The step checkout, which the job checkout runs after its settings step, runs in site() a command not on the list: `npm ci`.', $script( '/^checkout\(\) \{$/', "\tfiltered \"\$work/x.out\" site" ) ),
 			'a pass-through of its own'               => array( 'The step checkout, which the job checkout runs after its settings step, runs in checkout() a command not on the list: `heads npm ci`.', static fn( array $lines, array $script ): array => array( $lines, self::after( self::after( $script, '/^checkout\(\) \{$/', "\theads npm ci" ), '/^heads\(\) \{$/', "\t\"\$@\"" ) ) ),
 		);
+	}
+
+	/**
+	 * Tests that the clean-up puts the site's PayPal orders on the run list before it voids, so that a checkout step that failed or ran out of time before its own end leaves nothing held.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_cleanup_harvests_the_site_before_it_voids(): void {
+		$this->assertNull( self::cleanupHarvestsFirst( self::script() ) );
+	}
+
+	/**
+	 * Tests that a clean-up that voids without harvesting first is found.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_cleanup_that_does_not_harvest_first_is_found(): void {
+		$this->assertSame( 'cleanup() voids what the run list names without putting the site\'s orders on it first.', self::cleanupHarvestsFirst( self::without( self::script(), '/^\t\t\tharvest_site \|\| status=1$/' ) ) );
 	}
 
 	/**
@@ -759,6 +778,23 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$item['keys'][ $match[1] ] = $match[2];
 
 		return $match[1];
+	}
+
+	/**
+	 * Says why the script's cleanup() could void before the site's orders are on the run list, or null when it cannot.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $script The script's lines.
+	 * @return string|null Why; null when the harvest comes first.
+	 * @phpstan-param list<string> $script
+	 */
+	private static function cleanupHarvestsFirst( array $script ): ?string {
+		$heads = array_map( static fn( array $words ): string => implode( ' ', self::bare( $words ) ), self::commands( self::functions( $script )['cleanup'] ?? array() ) );
+		$void  = array_keys( preg_grep( '/^php "\$ext\/tests\/Integration\/Live\/cleanup\.php"/', $heads ) );
+		$reap  = array_keys( preg_grep( '/^harvest_site$/', $heads ) );
+
+		return array() !== $void && array() !== $reap && $reap[0] < $void[0] ? null : 'cleanup() voids what the run list names without putting the site\'s orders on it first.';
 	}
 
 	/**

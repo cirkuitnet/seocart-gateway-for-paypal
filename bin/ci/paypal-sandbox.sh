@@ -31,11 +31,11 @@
 #   checkout        Runs the checkout's browser tests (tests/browser/specs) against that site: those
 #                   tagged @when-required, then, the settings file rewritten to ask the bank to check
 #                   every card and the gateway configured from it again, those tagged @always. Each
-#                   must pass, none skipped. Whatever became of them, the PayPal orders the site
-#                   created go on the run list.
-#   cleanup         Voids what the run left authorized at PayPal (no webhook is created or
-#                   removed); then stops the site's server, and removes the settings file, the run
-#                   list, the report and the site.
+#                   must pass, none skipped.
+#   cleanup         Puts the PayPal orders of the checkout's site, when the job has one, on the run
+#                   list, whatever became of the job's steps; voids what the run left authorized at
+#                   PayPal (no webhook is created or removed); then stops the site's server, and
+#                   removes the settings file, the run list, the report and the site.
 #   verdict         Says, for each thing the run proves, which job proves it and how it went
 #                   (PAYPAL_SANDBOX_NEEDS, PAYPAL_SANDBOX_PARTS), and fails a red run.
 #
@@ -286,11 +286,13 @@ browser_tests() {
 	)
 }
 
-# Adds the site's PayPal orders to the run list, each as PayPal's id and the store's uuid.
+# Adds the site's PayPal orders to the run list, each as PayPal's id and the store's uuid, once: an
+# order harvested again is still one line.
 harvest_site() {
 	prefix=$(site_wp db prefix </dev/null)
 	site_wp db query "SELECT provider_intent_id, uuid FROM ${prefix}seocart_payment_intents WHERE gateway_id = 'paypal' AND provider_intent_id REGEXP '^[A-Z0-9]{17}\$'" \
 		--skip-column-names </dev/null | tr '\t' ' ' >>"$run_list"
+	sort -u -o "$run_list" "$run_list"
 	echo "$(grep -c '^[A-Z0-9]\{17\} ' "$run_list" || true) PayPal orders on the run list."
 }
 
@@ -307,7 +309,6 @@ checkout() {
 	policy SCA_ALWAYS
 	configure
 	browser_tests always "$work/checkout-always.out" || status=$?
-	harvest_site || status=1
 	passed=0
 	skipped=0
 	for group in when-required always; do
@@ -331,6 +332,11 @@ checkout() {
 cleanup() {
 	status=0
 	if [ -f "$settings" ]; then
+		# The checkout's site holds the orders its tests made, even when a step failed or the job ran
+		# out of time before they were listed: they are listed before anything is voided.
+		if [ -f "$site_env" ]; then
+			harvest_site || status=1
+		fi
 		php "$ext/tests/Integration/Live/cleanup.php" "$settings" "$run_list" || status=$?
 	else
 		echo 'cleanup: no settings file, so this job made no request to PayPal.'
