@@ -205,21 +205,54 @@ abstract class LivePayPalCase extends ConformanceHarness {
 	 *
 	 * @param array<string, mixed>  $placed  The placement, whose next action names the order.
 	 * @param array<string, string> $card    The card.
-	 * @param string                $label   What the run's report names the card fields' answer by (`card-fields-<label>`).
-	 * @param string                $control Optional. `complete` or `fail`, for a 3-D Secure challenge. Default `complete`.
+	 * @param string                $control `complete` or `fail`, for a 3-D Secure challenge.
+	 * @param int                   $attempt 1 for the payment's first try, 2 for the one more LiveRun::mayTryAgain() allows.
 	 * @return string What the browser script answered: one of LiveRun::CARD_WORDS, or an error's name.
 	 */
-	protected function approveInBrowser( array $placed, array $card, string $label, string $control = 'complete' ): string {
+	protected function approveInBrowser( array $placed, array $card, string $control, int $attempt ): string {
 		$action = (array) ( $placed['next_action'] ?? array() );
 
+		$this->assertSame( 'requires_action', $placed['outcome'], 'The card placement did not wait for the shopper.' );
 		$this->assertSame( 'sdk', $action['type'] ?? null, 'The card placement asked for no step of PayPal\'s script.' );
 		$this->assertSame( $placed['paypal_order'], $action['client_token'] ?? null, 'The step\'s handle is not the order PayPal made.' );
 
-		$word = LiveRun::approveCard( $this->paypal->clientId(), (string) $placed['paypal_order'], self::CURRENCY, $card, $control );
+		return LiveRun::approveCard( $this->paypal->clientId(), (string) $placed['paypal_order'], self::CURRENCY, $card, $control, $attempt );
+	}
 
-		LiveRun::report( 'card-fields-' . $label, LiveRun::lastCard() );
+	/**
+	 * Places a card payment and approves it in PayPal's card fields, in a browser; when the fields refused the card before any challenge, on the first try, places a fresh payment and tries once more.
+	 *
+	 * The run's report names each answer `card-fields-<label>`: a first try the fields refused before
+	 * any challenge as `refused <ISSUE>, tried again`, and the second try's answer as
+	 * `card-fields-<label>-again`. Never a third try, and never one after a challenge was shown:
+	 * the second answer is the test's, so two refusals fail it. Every order placed is on the run
+	 * list for the cleanup.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param array<string, string> $card    The card.
+	 * @param string                $label   What the run's report names the card fields' answer by.
+	 * @param string                $control Optional. `complete` or `fail`, for a 3-D Secure challenge. Default `complete`.
+	 * @return array{0: array<string, mixed>, 1: string} The placement the answer is about, and the answer: one of LiveRun::CARD_WORDS, or an error's name.
+	 */
+	protected function placeAndApprove( array $card, string $label, string $control = 'complete' ): array {
+		$placed = $this->placeLive( 'card' );
+		$word   = $this->approveInBrowser( $placed, $card, $control, 1 );
 
-		return $word;
+		if ( ! LiveRun::mayTryAgain() ) {
+			LiveRun::report( 'card-fields-' . $label, LiveRun::lastCard() );
+
+			return array( $placed, $word );
+		}
+
+		LiveRun::report( 'card-fields-' . $label, LiveRun::lastCard() . ', tried again' );
+
+		$placed = $this->placeLive( 'card' );
+		$word   = $this->approveInBrowser( $placed, $card, $control, 2 );
+
+		LiveRun::report( 'card-fields-' . $label . '-again', LiveRun::lastCard() );
+
+		return array( $placed, $word );
 	}
 
 	/**

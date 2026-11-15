@@ -3,11 +3,14 @@
 // Reads one JSON line on its standard input, never an argument a process list would show:
 //   { "clientId": the sandbox REST app's client id, "orderId": the order to approve, "currency": its currency,
 //     "card": { "number", "expiry" as MM/YY, "cvv", "name" } (a sandbox test card),
-//     "control": "complete" or "fail", for a 3-D Secure challenge, "browser": a browser to launch, or "" for Playwright's own }
+//     "control": "complete" or "fail", for a 3-D Secure challenge, "browser": a browser to launch, or "" for Playwright's own,
+//     "attempt": 1 for the first try of the payment, 2 for the one more the test may make (mayTryAgain()) }
 // Serves a page at http://127.0.0.1:<port> that loads PayPal's script with the client id and renders its card fields
 // for the order, types the card, submits it, takes the bank's challenge when it asks (its code, or its control), and prints
 // one line: a word of WORDS, saying what the fields answered and whether a challenge came first, followed, when the fields
-// refused, by the issue PayPal named (capitals and underscores only, such as INSTRUMENT_DECLINED). Any other error is
+// refused, by the issue PayPal named (capitals and underscores only, such as INSTRUMENT_DECLINED), or, when a field never
+// held what was typed, by the field's name. Each field is read back as the count of digits it holds, never its value,
+// and the card is submitted only when every count matches what was typed. Any other error is
 // reduced to its name, as a message of Playwright's or PayPal's can quote an address that holds a token. Nothing else is
 // printed, and no trace, video or screenshot is taken.
 
@@ -37,8 +40,9 @@ const CHALLENGE_WAIT_MS = 10_000;
 
 // Every word the script can print besides an error's name: the fields approved with no challenge (`approved`) or
 // refused before any (`refused`); a challenge was shown, answered, and the fields then approved (`challenge-passed`) or
-// refused (`challenge-failed`); or the fields never rendered, no control of the challenge came, or no answer did.
-export const WORDS = ['approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields', 'no-control', 'timeout'];
+// refused (`challenge-failed`); a field never held what was typed, so nothing was submitted (`not-typed`, followed by the
+// field's name); or the fields never rendered, no control of the challenge came, or no answer did.
+export const WORDS = ['approved', 'refused', 'challenge-passed', 'challenge-failed', 'not-typed', 'no-fields', 'no-control', 'timeout'];
 
 // Returns the issue PayPal named in what the fields threw when they refused, such as INSTRUMENT_DECLINED: the last run of
 // capitals joined by underscores, which can hold no address, token or card; empty when there is none.
@@ -47,6 +51,13 @@ export function reasonOf(text) {
 	const issue = issues ? issues[issues.length - 1] : '';
 
 	return issue.length <= 64 ? issue : '';
+}
+
+// Tells whether the live test may try the payment once more, with a fresh order: only when the fields refused the card
+// before any challenge (every field held what was typed, or nothing was submitted), and only after the first try. Never
+// after a challenge was shown, and never a third time: a second refusal is the test's failure.
+export function mayTryAgain(word, attempt) {
+	return word === 'refused' && attempt === 1;
 }
 
 // Returns the word for the fields' answer, by whether a challenge was answered before it.
@@ -76,12 +87,15 @@ export function outcomeWord(error) {
 	return /^[A-Za-z]{1,40}$/.test(name) ? name : 'Error';
 }
 
-// Prints an outcome and, for a refusal, the issue PayPal named; or an error reduced to its word; and nothing else.
-export function report(outcome, reason = '', write = (text) => process.stdout.write(text)) {
+// Prints an outcome and, for a refusal, the issue PayPal named, or for a field never typed, the field's name, then
+// `again` when the test may try once more (mayTryAgain()); or an error reduced to its word; and nothing else.
+export function report(outcome, reason = '', write = (text) => process.stdout.write(text), attempt = 1) {
 	const word = typeof outcome === 'string' && WORDS.includes(outcome) ? outcome : outcomeWord(outcome);
-	const issue = word !== outcome || reasonOf(reason) !== reason ? '' : reason;
+	const named = word === 'not-typed' ? CHECKED_FIELDS.includes(reason) : reasonOf(reason) === reason;
+	const issue = word !== outcome || !named ? '' : reason;
+	const again = word === outcome && mayTryAgain(word, attempt);
 
-	write(`${word}${issue ? ` ${issue}` : ''}\n`);
+	write(`${word}${issue ? ` ${issue}` : ''}${again ? ' again' : ''}\n`);
 }
 
 // Returns the address of PayPal's script for a client id and a currency: the card fields, for an order to authorize.
@@ -134,14 +148,64 @@ if (!fields.isEligible()) {
 // The field's own frame in its container: PayPal's script adds a frame of its own beside it, which watches for a close.
 export const FIELD_FRAME = 'iframe[title^="paypal_card_"]';
 
-// Types a value into the input of the PayPal frame inside a container.
-async function type(browserPage, container, value) {
+// The card's fields whose typing is checked, by their container's id: each holds digits only once PayPal formats it.
+export const CHECKED_FIELDS = ['number', 'expiry', 'cvv'];
+
+// How long to wait between keys on each try of a field: a field that dropped a key is typed again, more slowly.
+export const KEY_DELAYS_MS = [40, 90, 150];
+
+// Types a value into a field until the field holds as many digits as the value has: typed once, then, when the field
+// holds fewer or more, cleared and typed again, at most twice, more slowly. The field is a handle with ready(),
+// clear(), type(value, delay) and digits(), the count of digits it holds, never its value. True once the counts match.
+export async function typeChecked(field, value, delays = KEY_DELAYS_MS) {
+	const wanted = value.replace(/\D/g, '').length;
+
+	await field.ready();
+
+	for (const [attempt, delay] of delays.entries()) {
+		if (attempt > 0) {
+			await field.clear();
+		}
+
+		await field.type(value, delay);
+
+		if ((await field.digits()) === wanted) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Returns the handle of the input of PayPal's frame inside a container: waited for until attached, visible and
+// editable; typed key by key, as a shopper types, since PayPal's fields format and check what they are given as it is
+// typed; and read back as the count of digits it holds, the only thing of its value that leaves the frame.
+function cardField(browserPage, container) {
 	const input = browserPage.frameLocator(`${container} ${FIELD_FRAME}`).locator('input');
 
-	await input.waitFor({ timeout: FIELDS_MS });
-	await input.click();
-	// Typed key by key, as a shopper types: PayPal's fields format and check what they are given as it is typed.
-	await input.pressSequentially(value, { delay: 40 });
+	return {
+		ready: async () => {
+			await input.waitFor({ state: 'visible', timeout: FIELDS_MS });
+
+			for (const until = Date.now() + FIELDS_MS; !(await input.isEditable().catch(() => false)); ) {
+				if (Date.now() > until) {
+					throw Object.assign(new Error('A card field never became editable.'), { name: 'TimeoutError' });
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, 250));
+			}
+		},
+		clear: async () => {
+			await input.click();
+			await input.press('ControlOrMeta+A');
+			await input.press('Backspace');
+		},
+		type: async (value, delay) => {
+			await input.click();
+			await input.pressSequentially(value, { delay });
+		},
+		digits: () => input.evaluate((element) => element.value.replace(/\D/g, '').length),
+	};
 }
 
 // Presses the first button of a name in any frame of the page: `challenge` once it did, `answered` when the fields
@@ -241,10 +305,19 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 			return { word: 'no-fields' };
 		}
 
-		await type(browserPage, '#name', card.name);
-		await type(browserPage, '#number', card.number);
-		await type(browserPage, '#expiry', card.expiry);
-		await type(browserPage, '#cvv', card.cvv);
+		// The name is optional and holds no digits, so it is typed once; the number, the expiry and the security code are
+		// checked, and the card is submitted only when each held every digit typed: a typing fault is never PayPal's refusal.
+		// Each is read back while it still has the focus: PayPal shows the number as its last four digits once it loses it.
+		const name = cardField(browserPage, '#name');
+
+		await name.ready();
+		await name.type(card.name, KEY_DELAYS_MS[0]);
+
+		for (const field of CHECKED_FIELDS) {
+			if (!(await typeChecked(cardField(browserPage, `#${field}`), card[field]))) {
+				return { word: 'not-typed', reason: field };
+			}
+		}
 
 		// Not awaited in the page: the submission settles only once a challenge, if the bank asks for one, is done.
 		await browserPage.evaluate(() => {
@@ -282,19 +355,21 @@ async function readInput() {
 		!/^[A-Z0-9]{17}$/.test(input.orderId ?? '') ||
 		!/^[A-Z]{3}$/.test(input.currency ?? '') ||
 		!['number', 'expiry', 'cvv', 'name'].every((field) => typeof card[field] === 'string') ||
-		!((input.control ?? 'complete') in CONTROLS)
+		!((input.control ?? 'complete') in CONTROLS) ||
+		![1, 2].includes(input.attempt ?? 1)
 	) {
-		throw new TypeError('The input names no client id, order, currency, card or known control.');
+		throw new TypeError('The input names no client id, order, currency, card, known control or first or second try.');
 	}
 
-	return { control: 'complete', browser: '', ...input };
+	return { control: 'complete', browser: '', attempt: 1, ...input };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 	try {
-		const { word, reason } = await approve(await readInput());
+		const input = await readInput();
+		const { word, reason } = await approve(input);
 
-		report(word, word === 'refused' || word === 'challenge-failed' ? (reason ?? '') : '');
+		report(word, ['refused', 'challenge-failed', 'not-typed'].includes(word) ? (reason ?? '') : '', undefined, input.attempt);
 	} catch (error) {
 		report(error);
 	}

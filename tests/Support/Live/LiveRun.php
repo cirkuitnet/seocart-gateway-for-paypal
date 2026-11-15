@@ -53,13 +53,22 @@ final class LiveRun {
 	public const BROWSER = 'SEOCART_LIVE_BROWSER';
 
 	/**
-	 * The words the card script prints: the fields approved with no challenge or refused before any; a challenge was shown, answered, and the fields then approved or refused; or no fields, no control of the challenge, no answer.
+	 * The words the card script prints: the fields approved with no challenge or refused before any; a challenge was shown, answered, and the fields then approved or refused; a field never held what was typed, so nothing was submitted; or no fields, no control of the challenge, no answer.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @var list<string>
 	 */
-	public const CARD_WORDS = array( 'approved', 'refused', 'challenge-passed', 'challenge-failed', 'no-fields', 'no-control', 'timeout' );
+	public const CARD_WORDS = array( 'approved', 'refused', 'challenge-passed', 'challenge-failed', 'not-typed', 'no-fields', 'no-control', 'timeout' );
+
+	/**
+	 * The card fields the card script checks what it typed into, by the name it prints after `not-typed`.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var list<string>
+	 */
+	public const CHECKED_FIELDS = array( 'number', 'expiry', 'cvv' );
 
 	/**
 	 * What the card script answered last: its word, and the issue PayPal named when the fields refused.
@@ -69,6 +78,15 @@ final class LiveRun {
 	 * @var string
 	 */
 	private static string $lastCard = '';
+
+	/**
+	 * Whether the card script's last line let the test try the payment once more.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @var bool
+	 */
+	private static bool $tryAgain = false;
 
 	/**
 	 * Returns a version 4 uuid, for a store reference the live tests make themselves.
@@ -99,9 +117,10 @@ final class LiveRun {
 	 * @param string                $currency The order's currency.
 	 * @param array<string, string> $card     The card: number, expiry (MM/YY), cvv, name.
 	 * @param string                $control  `complete` or `fail`, for a 3-D Secure challenge.
+	 * @param int                   $attempt  Optional. 1 for the payment's first try, 2 for the one more mayTryAgain() allows. Default 1.
 	 * @return string One of CARD_WORDS, or the name of the error the script met.
 	 */
-	public static function approveCard( #[\SensitiveParameter] string $clientId, string $orderId, string $currency, #[\SensitiveParameter] array $card, string $control ): string {
+	public static function approveCard( #[\SensitiveParameter] string $clientId, string $orderId, string $currency, #[\SensitiveParameter] array $card, string $control, int $attempt = 1 ): string {
 		$script  = dirname( __DIR__, 2 ) . '/browser/approve-card.mjs';
 		$process = proc_open(
 			array( 'node', $script ),
@@ -127,6 +146,7 @@ final class LiveRun {
 					'card'     => $card,
 					'control'  => $control,
 					'browser'  => (string) getenv( self::BROWSER ),
+					'attempt'  => $attempt,
 				)
 			) . "\n"
 		);
@@ -140,7 +160,7 @@ final class LiveRun {
 	}
 
 	/**
-	 * Reads the card script's line: its word, which it returns, and the issue PayPal named, which it keeps with the word for lastCard().
+	 * Reads the card script's line: its word, which it returns, and the issue PayPal named or the field never typed, which it keeps with the word for lastCard().
 	 *
 	 * @since 0.2.0
 	 *
@@ -148,13 +168,31 @@ final class LiveRun {
 	 * @return string One of CARD_WORDS, the name of the error the script met, or `Error` for anything else.
 	 */
 	public static function cardAnswer( string $line ): string {
-		$parts  = explode( ' ', $line, 2 );
-		$word   = in_array( $parts[0], self::CARD_WORDS, true ) || 1 === preg_match( '/^[A-Za-z]{1,40}$/D', $parts[0] ) ? $parts[0] : 'Error';
-		$reason = isset( $parts[1] ) && 'Error' !== $word && 1 === preg_match( '/^[A-Z]+(?:_[A-Z]+)+$/D', $parts[1] ) && strlen( $parts[1] ) <= 64 ? $parts[1] : '';
+		$tokens = explode( ' ', $line );
+		$again  = count( $tokens ) > 1 && 'again' === $tokens[ count( $tokens ) - 1 ];
+
+		list( $first, $rest ) = array_pad( array_slice( $tokens, 0, $again ? -1 : null ), 2, '' );
+
+		$word   = in_array( $first, self::CARD_WORDS, true ) || 1 === preg_match( '/^[A-Za-z]{1,40}$/D', $first ) ? $first : 'Error';
+		$named  = 'not-typed' === $word ? in_array( $rest, self::CHECKED_FIELDS, true ) : 1 === preg_match( '/^[A-Z]+(?:_[A-Z]+)+$/D', $rest ) && strlen( $rest ) <= 64;
+		$reason = 'Error' !== $word && $named ? $rest : '';
 
 		self::$lastCard = '' === $reason ? $word : $word . ' ' . $reason;
+		// Only a refusal before any challenge is tried once more, whatever the line says.
+		self::$tryAgain = $again && 'refused' === $word;
 
 		return $word;
+	}
+
+	/**
+	 * Tells whether the card script said the test may try the payment once more: its fields refused the card before any challenge, on the first try.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return bool True when it may.
+	 */
+	public static function mayTryAgain(): bool {
+		return self::$tryAgain;
 	}
 
 	/**

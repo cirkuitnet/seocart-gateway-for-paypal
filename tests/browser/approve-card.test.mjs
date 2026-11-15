@@ -7,15 +7,49 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 
-import { CHALLENGE_CODE, CONTROLS, outcomeWord, page, reasonOf, report, sdkUrl, wordFor, WORDS } from './approve-card.mjs';
+import { CHALLENGE_CODE, CONTROLS, KEY_DELAYS_MS, mayTryAgain, outcomeWord, page, reasonOf, report, sdkUrl, typeChecked, wordFor, WORDS } from './approve-card.mjs';
+
+// A card field as typeChecked() handles it: keeps what it accepts, drops the first key of a value some number of times,
+// or accepts nothing; records each try's key delay.
+function fakeField({ dropsFirstKey = 0, accepts = true } = {}) {
+	let value = '';
+	let drops = dropsFirstKey;
+
+	return {
+		delays: [],
+		readied: 0,
+		ready: async function () {
+			this.readied++;
+		},
+		clear: async () => {
+			value = '';
+		},
+		type: async function (text, delay) {
+			this.delays.push(delay);
+
+			if (!accepts) {
+				return;
+			}
+
+			value += drops > 0 ? text.slice(1) : text;
+			drops = Math.max(0, drops - 1);
+		},
+		digits: async () => value.replace(/\D/g, '').length,
+	};
+}
 
 // Prints through report() into a string.
-function printed(outcome, reason = '') {
+function printed(outcome, reason = '', attempt = 2) {
 	let text = '';
 
-	report(outcome, reason, (chunk) => {
-		text += chunk;
-	});
+	report(
+		outcome,
+		reason,
+		(chunk) => {
+			text += chunk;
+		},
+		attempt
+	);
 
 	return text;
 }
@@ -54,6 +88,44 @@ test('each outcome prints as itself, and nothing else does', () => {
 	assert.equal(printed('declined'), 'Error\n', 'The fields\' own word is never printed: whether a challenge came first is.');
 	assert.equal(printed('4868719196829038'), 'Error\n');
 	assert.equal(printed('https://example.com/?token=x'), 'Error\n');
+});
+
+test('a field that drops a key is typed again, more slowly, and a field that keeps it once is typed once', async () => {
+	const steady = fakeField();
+	const dropping = fakeField({ dropsFirstKey: 1 });
+
+	assert.equal(await typeChecked(steady, '123'), true);
+	assert.deepEqual(steady.delays, [KEY_DELAYS_MS[0]]);
+	assert.equal(await typeChecked(dropping, '12/30'), true, 'The expiry\'s dropped first key is typed again.');
+	assert.deepEqual(dropping.delays, [KEY_DELAYS_MS[0], KEY_DELAYS_MS[1]]);
+	assert.equal(dropping.readied, 1, 'The field is waited for before the first key.');
+});
+
+test('a field that never takes the value is given up after two more tries, and prints its name, never a value', async () => {
+	const deaf = fakeField({ accepts: false });
+	const stubborn = fakeField({ dropsFirstKey: 5 });
+
+	assert.equal(await typeChecked(deaf, '123'), false);
+	assert.deepEqual(deaf.delays, KEY_DELAYS_MS, 'Three tries, the last two slower.');
+	assert.equal(await typeChecked(stubborn, '4868719166101368'), false);
+	assert.ok(WORDS.includes('not-typed'));
+	assert.equal(printed('not-typed', 'cvv'), 'not-typed cvv\n');
+	assert.equal(printed('not-typed', '4868719166101368'), 'not-typed\n', 'Only a field\'s name follows the word.');
+	assert.equal(printed('refused', 'cvv'), 'refused\n', 'A field\'s name follows no other word.');
+});
+
+test('a refusal before any challenge may be tried once more, and nothing else may', () => {
+	assert.equal(mayTryAgain('refused', 1), true, 'A refusal before any challenge, on the first try: once more.');
+	assert.equal(printed('refused', 'INVALID_CVV', 1), 'refused INVALID_CVV again\n');
+	assert.equal(mayTryAgain('refused', 2), false, 'Two refusals: the test fails.');
+	assert.equal(printed('refused', 'INVALID_CVV', 2), 'refused INVALID_CVV\n');
+
+	for (const word of ['challenge-failed', 'challenge-passed', 'approved', 'not-typed', 'no-fields', 'no-control', 'timeout']) {
+		assert.equal(mayTryAgain(word, 1), false, `${word} is never tried again.`);
+		assert.ok(!printed(word, '', 1).includes('again'));
+	}
+
+	assert.equal(printed(new Error('refused'), '', 1), 'Error\n');
 });
 
 test('the fields\' answer is told apart by whether a challenge came before it', () => {

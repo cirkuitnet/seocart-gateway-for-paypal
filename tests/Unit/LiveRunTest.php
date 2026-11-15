@@ -104,12 +104,34 @@ final class LiveRunTest extends TestCase {
 			array( 'refused INSTRUMENT_DECLINED', 'refused', 'refused INSTRUMENT_DECLINED' ),
 			array( 'challenge-passed', 'challenge-passed', 'challenge-passed' ),
 			array( 'refused token=abc', 'refused', 'refused' ),
+			array( 'not-typed cvv', 'not-typed', 'not-typed cvv' ),
+			array( 'not-typed 4868719166101368', 'not-typed', 'not-typed' ),
+			array( 'refused cvv', 'refused', 'refused' ),
 			array( '4868719196829038', 'Error', 'Error' ),
 			array( 'TypeError', 'TypeError', 'TypeError' ),
 		);
 
 		foreach ( $answers as list( $line, $word, $kept ) ) {
-			$this->assertSame( array( $word, $kept ), array( LiveRun::cardAnswer( $line ), LiveRun::lastCard() ), $line );
+			$this->assertSame( array( $word, $kept, false ), array( LiveRun::cardAnswer( $line ), LiveRun::lastCard(), LiveRun::mayTryAgain() ), $line );
+		}
+	}
+
+	/**
+	 * Tests the one more try: only a refusal before any challenge that the card script lets be tried again, never anything after a challenge.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_only_a_refusal_before_any_challenge_may_be_tried_once_more(): void {
+		$answers = array(
+			array( 'refused INVALID_CVV again', 'refused', 'refused INVALID_CVV', true ),
+			array( 'refused again', 'refused', 'refused', true ),
+			array( 'refused INVALID_CVV', 'refused', 'refused INVALID_CVV', false ),
+			array( 'challenge-failed INSTRUMENT_DECLINED again', 'challenge-failed', 'challenge-failed INSTRUMENT_DECLINED', false ),
+			array( 'not-typed cvv again', 'not-typed', 'not-typed cvv', false ),
+		);
+
+		foreach ( $answers as list( $line, $word, $kept, $again ) ) {
+			$this->assertSame( array( $word, $kept, $again ), array( LiveRun::cardAnswer( $line ), LiveRun::lastCard(), LiveRun::mayTryAgain() ), $line );
 		}
 	}
 
