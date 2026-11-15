@@ -12,23 +12,15 @@
 // held what was typed, by the field's name. Each field is read back as the count of digits it holds, never its value,
 // and the card is submitted only when every count matches what was typed. Any other error is
 // reduced to its name, as a message of Playwright's or PayPal's can quote an address that holds a token. Nothing else is
-// printed, and no trace, video or screenshot is taken.
+// printed, and no trace, video or screenshot is taken. The typing and the challenge's controls are card-fields.mjs's,
+// which the checkout's browser tests share.
 
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-// The controls of the sandbox's 3-D Secure challenge, by what the test asks for: a button's accessible name, looked for
-// in every frame, as the challenge is a frame inside PayPal's. PayPal does not document the challenge's markup, so these
-// and CHALLENGE_CODE are the one place to change when it changes.
-export const CONTROLS = {
-	complete: /^\s*(submit|continue|complete|authenticate|ok)\b/i,
-	fail: /^\s*(cancel|fail|decline)\b/i,
-};
+import { CHALLENGE_CODE, CHECKED_FIELDS, CONTROLS, FIELD_FRAME, KEY_DELAYS_MS, cardField, enterCode, pressControl, typeChecked } from './card-fields.mjs';
 
-// The one-time code the sandbox's challenge asks for (PayPal's authentication simulator, a frame inside PayPal's), and
-// the field it is typed into. The code is entered and submitted from the keyboard: PayPal's cookie notice can cover the
-// challenge's button, and a key press needs no pointer.
-export const CHALLENGE_CODE = { field: 'input[name="otp"]', code: '1234' };
+export { CHALLENGE_CODE, CHECKED_FIELDS, CONTROLS, FIELD_FRAME, KEY_DELAYS_MS, typeChecked };
 
 // How long PayPal's script may take to render the fields, the challenge to appear, and PayPal to answer.
 const FIELDS_MS = 60_000;
@@ -145,116 +137,6 @@ if (!fields.isEligible()) {
 </body></html>`;
 }
 
-// The field's own frame in its container: PayPal's script adds a frame of its own beside it, which watches for a close.
-export const FIELD_FRAME = 'iframe[title^="paypal_card_"]';
-
-// The card's fields whose typing is checked, by their container's id: each holds digits only once PayPal formats it.
-export const CHECKED_FIELDS = ['number', 'expiry', 'cvv'];
-
-// How long to wait between keys on each try of a field: a field that dropped a key is typed again, more slowly.
-export const KEY_DELAYS_MS = [40, 90, 150];
-
-// Types a value into a field until the field holds as many digits as the value has: typed once, then, when the field
-// holds fewer or more, cleared and typed again, at most twice, more slowly. The field is a handle with ready(),
-// clear(), type(value, delay) and digits(), the count of digits it holds, never its value. True once the counts match.
-export async function typeChecked(field, value, delays = KEY_DELAYS_MS) {
-	const wanted = value.replace(/\D/g, '').length;
-
-	await field.ready();
-
-	for (const [attempt, delay] of delays.entries()) {
-		if (attempt > 0) {
-			await field.clear();
-		}
-
-		await field.type(value, delay);
-
-		if ((await field.digits()) === wanted) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-// Returns the handle of the input of PayPal's frame inside a container: waited for until attached, visible and
-// editable; typed key by key, as a shopper types, since PayPal's fields format and check what they are given as it is
-// typed; and read back as the count of digits it holds, the only thing of its value that leaves the frame.
-function cardField(browserPage, container) {
-	const input = browserPage.frameLocator(`${container} ${FIELD_FRAME}`).locator('input');
-
-	return {
-		ready: async () => {
-			await input.waitFor({ state: 'visible', timeout: FIELDS_MS });
-
-			for (const until = Date.now() + FIELDS_MS; !(await input.isEditable().catch(() => false)); ) {
-				if (Date.now() > until) {
-					throw Object.assign(new Error('A card field never became editable.'), { name: 'TimeoutError' });
-				}
-
-				await new Promise((resolve) => setTimeout(resolve, 250));
-			}
-		},
-		clear: async () => {
-			await input.click();
-			await input.press('ControlOrMeta+A');
-			await input.press('Backspace');
-		},
-		type: async (value, delay) => {
-			await input.click();
-			await input.pressSequentially(value, { delay });
-		},
-		digits: () => input.evaluate((element) => element.value.replace(/\D/g, '').length),
-	};
-}
-
-// Presses the first button of a name in any frame of the page: `challenge` once it did, `answered` when the fields
-// answered first, null when neither came in time.
-async function press(browserPage, name, until) {
-	while (Date.now() < until) {
-		for (const frame of browserPage.frames()) {
-			const button = frame.getByRole('button', { name });
-
-			if ((await button.count().catch(() => 0)) > 0) {
-				await button.first().click({ timeout: CONTROL_MS });
-				return 'challenge';
-			}
-		}
-
-		if ((await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null) {
-			return 'answered';
-		}
-
-		await new Promise((resolve) => setTimeout(resolve, 500));
-	}
-
-	return null;
-}
-
-// Types the challenge's code where a frame asks for one, and submits it with the Enter key: `challenge` once it did,
-// `answered` when the fields answered first, null when neither came in time.
-async function enterCode(browserPage, until) {
-	while (Date.now() < until) {
-		for (const frame of browserPage.frames()) {
-			const field = frame.locator(CHALLENGE_CODE.field);
-
-			if ((await field.count().catch(() => 0)) > 0) {
-				await field.first().fill(CHALLENGE_CODE.code, { timeout: CONTROL_MS });
-				await field.first().press('Enter', { timeout: CONTROL_MS });
-				return 'challenge';
-			}
-		}
-
-		if ((await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null) {
-			return 'answered';
-		}
-
-		await new Promise((resolve) => setTimeout(resolve, 500));
-	}
-
-	return null;
-}
-
 // Waits for PayPal's answer to the submission for a while; null when none came in time.
 async function settled(browserPage, ms) {
 	for (const until = Date.now() + ms; Date.now() < until; ) {
@@ -308,13 +190,13 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 		// The name is optional and holds no digits, so it is typed once; the number, the expiry and the security code are
 		// checked, and the card is submitted only when each held every digit typed: a typing fault is never PayPal's refusal.
 		// Each is read back while it still has the focus: PayPal shows the number as its last four digits once it loses it.
-		const name = cardField(browserPage, '#name');
+		const name = cardField(browserPage, '#name', FIELDS_MS);
 
 		await name.ready();
 		await name.type(card.name, KEY_DELAYS_MS[0]);
 
 		for (const field of CHECKED_FIELDS) {
-			if (!(await typeChecked(cardField(browserPage, `#${field}`), card[field]))) {
+			if (!(await typeChecked(cardField(browserPage, `#${field}`, FIELDS_MS), card[field]))) {
 				return { word: 'not-typed', reason: field };
 			}
 		}
@@ -330,7 +212,10 @@ async function approve({ clientId, orderId, currency, card, control, browser }) 
 		}
 
 		// To complete the challenge, its code when it asks for one, otherwise its button; to fail it, its button.
-		const step = (control === 'complete' ? await enterCode(browserPage, Date.now() + CONTROL_MS) : null) ?? (await press(browserPage, CONTROLS[control], Date.now() + CONTROL_MS));
+		const answered = async () => (await browserPage.evaluate(() => window.outcome).catch(() => null)) !== null;
+		const step =
+			(control === 'complete' ? await enterCode(browserPage, Date.now() + CONTROL_MS, answered) : null) ??
+			(await pressControl(browserPage, CONTROLS[control], Date.now() + CONTROL_MS, answered));
 
 		return step === null ? { word: 'no-control' } : await answer(step === 'challenge');
 	} finally {
