@@ -252,15 +252,19 @@
 			ending?.resolve( result );
 		};
 
-		// PayPal's card fields answered the submission: approved, or refused before any decision.
-		const answer = ( outcome ) => {
+		// PayPal's card fields answered: an approval counts for the pending submission's order alone; a
+		// refusal names no submission, and fails the pending one.
+		const answer = ( outcome, order ) => {
 			if ( ! pending ) {
 				return;
 			}
 
 			if ( 'approved' === outcome ) {
-				approved.add( pending.order );
-				settle( 'completed' );
+				if ( order === pending.order ) {
+					approved.add( order );
+					settle( 'completed' );
+				}
+
 				return;
 			}
 
@@ -303,7 +307,7 @@
 
 							return step;
 						},
-						onApprove: () => answer( 'approved' ),
+						onApprove: ( data ) => answer( 'approved', data?.orderID ),
 						onError: () => answer( 'refused' ),
 						onCancel: () => answer( 'refused' ),
 					} );
@@ -394,17 +398,18 @@
 			const promise = new Promise( ( done ) => {
 				resolve = done;
 			} );
+			const mine = { order, resolve, promise };
 
-			pending = { order, resolve, promise };
+			pending = mine;
 			step = order;
 
 			// PayPal answers through onApprove before the submission resolves; a refusal through onError
-			// or a rejection, a closed challenge through onCancel; the first answer counts. One that
-			// resolves unanswered fails.
+			// or a rejection, a closed challenge through onCancel; the first answer counts. The
+			// submission's own promise speaks for it alone: resolved unanswered, it fails.
 			try {
 				fields.submit( Object.keys( address ).length ? { billingAddress: address } : undefined ).then(
-					() => order === step && settle( 'failed' ),
-					() => answer( 'refused' )
+					() => pending === mine && settle( 'failed' ),
+					() => pending === mine && answer( 'refused' )
 				);
 			} catch {
 				answer( 'refused' );

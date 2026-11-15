@@ -15,7 +15,9 @@
 // - an `sdk` step taken with the PayPal part selected by submitting anyway: the other-part test fails;
 // - the order id written to sessionStorage: the storage test fails (and tests/Unit/IslandTest.php's scan);
 // - in giveUp(), a load that never answered kept as it is: the never-answering load's tests fail;
-// - in showCard(), the card fields made for a load the form gave up on: the late-arrival test fails.
+// - in showCard(), the card fields made for a load the form gave up on: the late-arrival test fails;
+// - in submit(), an earlier submission's own promise let settle the pending one: the late-answer test fails;
+// - in answer(), an approval taken whatever order it names: the other-order approval test fails.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -92,9 +94,10 @@ function text(root) {
 // A stand-in for PayPal's script's global: its card fields, and what each submission comes to, recorded. `eligible`
 // is the account's answer; `renders` true for fields that render, false for ones that fail, 'never' for ones whose
 // frames never answer; `state` what getState() resolves, or 'reject'; `submit` what a submission does: 'approve',
-// 'error', 'cancel', 'reject', 'throw', 'resolve' (no callback) or 'hold' (the test answers through seen.last()).
+// 'error', 'cancel', 'reject', 'throw', 'resolve' (no callback) or 'hold' (the test answers through seen.last() and
+// each submission's own promise through seen.held).
 function fakePayPal({ eligible = true, renders = true, state = { isFormValid: true }, submit = 'approve' } = {}) {
-	const seen = { made: [], rendered: [], closed: 0, submissions: [], createOrder: [] };
+	const seen = { made: [], rendered: [], closed: 0, submissions: [], createOrder: [], held: [] };
 
 	const field = () => ({
 		render(container) {
@@ -164,7 +167,8 @@ function fakePayPal({ eligible = true, renders = true, state = { isFormValid: tr
 						return Promise.resolve();
 					}
 
-					return new Promise(() => {});
+					// Held: the test answers this submission's promise itself, through seen.held.
+					return new Promise((resolve, reject) => seen.held.push({ resolve, reject }));
 				},
 			};
 		},
@@ -601,7 +605,7 @@ test('a second action while one is in flight is answered the same, with one subm
 	const second = handle.action(SDK_STEP, RESUME);
 
 	assert.equal(first, second);
-	seen.last().onApprove({});
+	seen.last().onApprove({ orderID: ORDER });
 	assert.equal(await first, 'completed');
 	assert.equal(seen.submissions.length, 1);
 });
@@ -619,6 +623,66 @@ test('an answer after the step settled is dropped: the first answer counts', asy
 	handle.action(SDK_STEP, RESUME);
 	await settle();
 	assert.equal(seen.submissions.length, 2);
+});
+
+test('a late answer of an earlier submission\'s own promise, resolved or rejected, leaves the pending submission alone, whose approval then completes it and is remembered', async () => {
+	for (const late of ['resolve', 'reject']) {
+		const { handle, seen } = await cardForm({ paypal: fakePayPal({ submit: 'hold' }) });
+		const first = handle.action(SDK_STEP, RESUME);
+
+		seen.last().onCancel();
+		assert.equal(await first, 'failed');
+
+		let answered = null;
+		const second = handle.action(SDK_STEP, RESUME).then((result) => (answered = result));
+
+		seen.held[0][late](new Error('late'));
+		await settle();
+		assert.equal(answered, null, `The first submission's late ${late} settles nothing.`);
+
+		seen.last().onApprove({ orderID: ORDER });
+		assert.equal(await second, 'completed');
+		assert.equal(await handle.action(SDK_STEP, RESUME), 'completed');
+		assert.equal(seen.submissions.length, 2, 'The approval is remembered: no third submission.');
+	}
+});
+
+test('an approval that names another order, or none, completes nothing and is not remembered', async () => {
+	const { handle, seen } = await cardForm({ paypal: fakePayPal({ submit: 'hold' }) });
+	let answered = null;
+	const acting = handle.action(SDK_STEP, RESUME).then((result) => (answered = result));
+
+	seen.last().onApprove({ orderID: OTHER_ORDER });
+	seen.last().onApprove({});
+	await settle();
+	assert.equal(answered, null, 'Still pending.');
+
+	seen.last().onApprove({ orderID: ORDER });
+	assert.equal(await acting, 'completed');
+
+	handle.action({ ...SDK_STEP, client_token: OTHER_ORDER }, RESUME);
+	await settle();
+	assert.equal(seen.submissions.length, 2, 'The other order is not taken as approved: it is submitted.');
+});
+
+test('an onError or onCancel arriving while a later submission is pending fails that submission, never completes it, and the next press submits the order again', async () => {
+	for (const late of ['onError', 'onCancel']) {
+		const { handle, seen } = await cardForm({ paypal: fakePayPal({ submit: 'hold' }) });
+		const first = handle.action(SDK_STEP, RESUME);
+
+		seen.last().onCancel();
+		await first;
+
+		const second = handle.action(SDK_STEP, RESUME);
+
+		seen.last()[late](new Error('late'));
+		assert.equal(await second, 'failed', late);
+
+		seen.last().onApprove({ orderID: ORDER });
+		handle.action(SDK_STEP, RESUME);
+		await settle();
+		assert.equal(seen.submissions.length, 3, `${late}: a third submission, one more press.`);
+	}
 });
 
 test('unmount() during a step abandons it: the action answers left, whatever PayPal answers later', async () => {
