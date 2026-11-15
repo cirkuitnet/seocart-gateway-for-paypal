@@ -72,9 +72,29 @@ PayPal signs each webhook delivery it sends the store. SEOCart Gateway for PayPa
 * Terms of use: https://www.paypal.com/legalhub/paypal/useragreement-full
 * Privacy policy: https://www.paypal.com/myaccount/privacy/privacyhub
 
+= PayPal JavaScript SDK =
+
+The PayPal JavaScript SDK is PayPal's script for taking card details in the browser. SEOCart Gateway for PayPal loads it on the checkout page to show PayPal's card fields, and to let the card's bank confirm a payment there (3D Secure).
+
+* Endpoint: `https://www.paypal.com/sdk/js`
+* Data sent: Sent to PayPal by the shopper's browser, never by your site: the REST app's client id and the payment's currency, in the script's address; the card number, expiry date and security code the shopper types into PayPal's fields; the billing address the checkout holds (postal address only); and the bank's check. PayPal's script also collects information about the browser and device, and sets its own cookies, to prevent fraud.
+* When: On the checkout page, once the shopper chooses to pay by card with PayPal, and when they place the order with it. Nothing is loaded on any other page, before the card is chosen, or for a shopper who pays with PayPal on PayPal's site.
+* Terms of use: https://www.paypal.com/legalhub/paypal/useragreement-full
+* Privacy policy: https://www.paypal.com/myaccount/privacy/privacyhub
+
+= PayPal approval page =
+
+PayPal's page where the shopper signs in to PayPal and approves the payment. SEOCart Gateway for PayPal sends the shopper there to pay with PayPal, and PayPal sends them back to the store.
+
+* Endpoint: `https://www.paypal.com/checkoutnow`
+* Data sent: Sent to PayPal by the shopper's browser, never by your site: the id of the PayPal order the store created, in the page's address. What the shopper then gives PayPal on its page is between them and PayPal.
+* When: When the shopper places an order to be paid with PayPal on PayPal's site, and again if they place it again without having approved it. In test mode the page is PayPal's sandbox.
+* Terms of use: https://www.paypal.com/legalhub/paypal/useragreement-full
+* Privacy policy: https://www.paypal.com/myaccount/privacy/privacyhub
+
 == Source code and build steps ==
 
-The complete, human-readable source code of this plugin is public at https://github.com/cirkuitnet/seocart-gateway-for-paypal. It is built with SEOCart's tools, from a SEOCart checkout beside it: `php ../seocart/bin/build-zip.php --plugin=.` assembles the installable zip in `dist/`.
+The complete, human-readable source code of this plugin is public at https://github.com/cirkuitnet/seocart-gateway-for-paypal. It is built with SEOCart's tools, from a SEOCart checkout beside it: `php ../seocart/bin/build-zip.php --plugin=.` assembles the installable zip in `dist/`. The checkout's PayPal form, `assets/island.js`, is hand-written JavaScript and ships as written: it has no build step.
 
 == Changelog ==
 
