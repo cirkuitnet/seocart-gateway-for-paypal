@@ -114,6 +114,13 @@ let extraPresses = 0;
 // The addresses of PayPal's script the running test's page itself requested: PayPal's own frames load it too.
 let scriptLoads = [];
 
+// The answers to the running test's placements: each payment's uuid and its PayPal order's id.
+let placements = [];
+
+// An id PayPal's script writes in the page's local storage, as measured: `uid_`, ten hexadecimal digits, `_`, and
+// eleven lower-case letters and digits.
+const PAYPAL_STORAGE_ID = /^uid_[0-9a-f]{10}_[a-z0-9]{11}$/;
+
 // Returns a line with every address's query and every id of PayPal's shape replaced.
 function redacted(line) {
 	return line.replace(/(https?:\/\/[^\s?'"]+)\?[^\s'"]*/g, '$1?<query>').replace(/\b[A-Z0-9]{17}\b/g, '<id>');
@@ -510,11 +517,13 @@ async function expectDeclineShown(page) {
 }
 
 // PayPal's script keeps its own state in the page's local storage, under `__<its global>_storage__`: an id, a session
-// (an id and the time it began, in milliseconds) and what it found of the shopper's funding. The time is a run of
-// thirteen digits, which the fixture's card-number check takes for a card about one time in ten. Each such item is
-// held to exactly that shape, its time to within ten minutes of now and nothing else of it a long run of digits, and
-// is then removed, so that the fixture's check holds the rest of the tab's storage as it is.
-async function expectPayPalStorageOnly(page) {
+// (an id and the time it began, in milliseconds) and the funding it found, measured empty in every card payment. The
+// time is a run of thirteen digits, which the fixture's card-number check takes for a card about one time in ten. Each
+// such item is held to exactly that measured shape: those members and no other, both ids PayPal's pattern, the time an
+// integer within ten minutes of now, the funding empty; and none of the run's own values (its orders' ids, its
+// payments' uuids, an order's key) anywhere in it. Then it is removed, so that the fixture's check holds the rest of
+// the tab's storage as it is.
+async function expectPayPalStorageOnly(page, known) {
 	const items = await page.evaluate(() =>
 		Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
 			.filter((key) => /^__seocartPayPal\d+_storage__$/.test(key))
@@ -526,8 +535,14 @@ async function expectPayPalStorageOnly(page) {
 
 		expect(Object.keys(item).sort(), `PayPal's ${key} holds its id, its session and its funding, and nothing else.`).toEqual(['__session__', 'funding', 'id']);
 		expect(Object.keys(item.__session__).sort(), `PayPal's ${key} session holds its id and its time.`).toEqual(['created', 'guid']);
-		expect(Math.abs(item.__session__.created - Date.now()), `PayPal's ${key} session's time is now.`).toBeLessThan(600_000);
-		expect(JSON.stringify([item.id, item.__session__.guid, item.funding]), `Nothing else of PayPal's ${key} is a long run of digits.`).not.toMatch(/\d{13,}/);
+		expect(item.id, `PayPal's ${key} id is PayPal's own.`).toMatch(PAYPAL_STORAGE_ID);
+		expect(item.__session__.guid, `PayPal's ${key} session id is PayPal's own.`).toMatch(PAYPAL_STORAGE_ID);
+		expect(Number.isInteger(item.__session__.created) && Math.abs(item.__session__.created - Date.now()) < 600_000, `PayPal's ${key} session's time is now.`).toBe(true);
+		expect(item.funding, `PayPal's ${key} funding is empty.`).toEqual({});
+
+		for (const value of known.filter(Boolean)) {
+			expect(text.includes(value), `PayPal's ${key} holds a value of the run's.`).toBe(false);
+		}
 	}
 
 	await page.evaluate((keys) => keys.forEach((key) => window.localStorage.removeItem(key)), items.map(([key]) => key));
@@ -541,7 +556,7 @@ async function expectContractKept(page, ledger, secrets) {
 
 	await expectOnlyHostWrites(page, ledger);
 	expectNoSecretInUrls({ ...ledger, urls: ledger.urls.filter((url) => url.startsWith(`${origin}/`)) }, secrets);
-	await expectPayPalStorageOnly(page);
+	await expectPayPalStorageOnly(page, [...secrets, ...placements.flatMap(({ intent, order }) => [intent, order])]);
 	await expectNothingSecretKept(page, secrets);
 }
 
@@ -593,6 +608,7 @@ test.describe('The PayPal form in the checkout, as a guest', () => {
 		consoleLines = [];
 		extraPresses = 0;
 		scriptLoads = [];
+		placements = await watchPlacements(page);
 		page.on('request', (request) => {
 			try {
 				if (request.frame() === page.mainFrame() && request.url().startsWith('https://www.paypal.com/sdk/js')) {
@@ -730,7 +746,7 @@ test.describe('The PayPal form in the checkout, as a guest', () => {
 	});
 
 	test('(8) paying with PayPal: Place leaves for PayPal\'s page for the store\'s order; back without approving, Place again is the same order @when-required', async ({ page }) => {
-		const answers = await watchPlacements(page);
+		const answers = placements;
 		const approvals = [];
 
 		// PayPal's approval page is answered here: the test never loads PayPal's sign-in.
@@ -829,7 +845,7 @@ test.describe('The PayPal form in the checkout, as a guest', () => {
 	});
 
 	test('(6) the page reloaded during the challenge: one payment, approved once the card is typed again @always', async ({ page }) => {
-		const answers = await watchPlacements(page);
+		const answers = placements;
 
 		await readyCart(page.request, product.variantId);
 		await openCardForm(page, pluginBasePath);
