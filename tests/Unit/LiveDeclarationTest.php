@@ -16,10 +16,12 @@ use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
 
 /**
- * The guard built from tests/live.php refuses an argument shaped like a credential (48 letters and digits or more, as PayPal's client ids, secrets and access tokens are), an authorization header, an address with a query, or a card number, and blanks the same shapes out of any text; PayPal's ids, of 17 characters or of an event's 38, pass, as does a run of digits that is no card, and an id whose digits read as a card is withheld when shown. The run list keeps one order per line with the store uuid it was made for, and reads back only lines of that shape; the card script's line is read as its word and the issue PayPal named; and a uuid the live tests make is a version 4 uuid.
+ * The guard built from tests/live.php refuses an argument shaped like a credential (48 letters, digits, `_` and `-` or more, as PayPal's client ids, secrets and access tokens are, unless the whole run is a test's name), an authorization header, an address with a query, or a card number, and blanks the same shapes out of any text; PayPal's ids, of 17 characters or of an event's 38, pass, as does a run of digits that is no card, and an id whose digits read as a card is withheld when shown. A test's name, `test_` and then lower-case letters, digits and `_` alone, is printed, so a red run of the live workflow says which test failed: every live test's and the longest of the plugin's, alone and on the line PHPUnit names a failure with, and in PHPUnit's own output for a failing live test passed through the workflow's filter, where an access token in the failure's message stays hidden. A run that only starts as a test's name does or holds one after other characters is hidden whole, as is one of lower-case letters and digits that does not start with `test_`. The run list keeps one order per line with the store uuid it was made for, and reads back only lines of that shape; the card script's line is read as its word and the issue PayPal named; and a uuid the live tests make is a version 4 uuid.
  *
- * Planted violation, shown red and removed: the declaration's credential shape taken out: the
- * credential is printed, and the shapes' test fails.
+ * Planted violations, each shown red and removed:
+ * - the declaration's credential shape taken out: the credentials are printed, and the shapes' tests and the filter's test fail;
+ * - the exemption of a test's name taken out: the names are hidden, and the names' test and the filter's test fail;
+ * - the exemption widened to any run of lower-case letters, digits and `_`: the runs of lower case that do not start with `test_` are printed, and the hidden runs' test fails.
  *
  * @since 0.2.0
  */
@@ -72,6 +74,63 @@ final class LiveDeclarationTest extends TestCase {
 	public function test_an_id_whose_digits_read_as_a_card_is_withheld(): void {
 		$this->assertSame( '(withheld: shaped like a card number)', PayPalRun::guard()->shown( '0VF52814937998046' ) );
 		$this->assertSame( '5O190127TN364715T', PayPalRun::guard()->shown( '5O190127TN364715T' ) );
+	}
+
+	/**
+	 * Tests PayPal's credentials, and runs that are no test's name whole: hidden, alone and on the line PHPUnit names a failure with.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @dataProvider hidden
+	 *
+	 * @param string $value The value.
+	 */
+	public function test_paypals_credentials_and_runs_that_are_no_tests_name_whole_are_hidden( string $value ): void {
+		$this->assertSame( 'a credential', PayPalRun::guard()->shapeOf( $value ) );
+		$this->assertSame( 'x [redacted: a credential] y', PayPalRun::guard()->redact( 'x ' . $value . ' y' ) );
+		$this->assertSame( "1) Live\\ThreeDSecureTest::[redacted: a credential]\n", PayPalRun::guard()->redact( '1) Live\\ThreeDSecureTest::' . $value . "\n" ) );
+	}
+
+	/**
+	 * Returns the values hidden, built here so that the repository keeps no literal of a credential's shape: a client id and a secret of 80 characters and an access token of 97, beginning as PayPal's do; runs that start as a test's name does and go on with an upper-case letter or a `-`; a live test's name after a letter and before an upper-case one; and 48 lower-case letters and digits that do not start with `test_`.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return array<string, array{string}> Each value, by what it is.
+	 */
+	public static function hidden(): array {
+		$name = self::longest( array_keys( self::testsIn( 'tests/Integration/Live' ) ) );
+
+		return array(
+			'a client id'                                => array( self::credential( 'A', 80 ) ),
+			'a secret'                                   => array( self::credential( 'E', 80 ) ),
+			'an access token'                            => array( self::credential( 'A21AA', 97 ) ),
+			'a test\'s start, then an upper-case letter' => array( 'test_' . str_repeat( 'live_', 9 ) . 'Token' ),
+			'a test\'s start, then a hyphen'             => array( 'test_' . str_repeat( 'live-', 9 ) ),
+			'a test\'s name after a letter'              => array( 'x' . $name ),
+			'a test\'s name before an upper-case letter' => array( $name . 'Token' ),
+			'lower-case letters and digits'              => array( str_repeat( '0123456789abcdef', 3 ) ),
+		);
+	}
+
+	/**
+	 * Tests a test's name: printed, alone and on the line PHPUnit names a failure with, so a red run says which test failed; every live test's, read from their files, and the longest of the plugin's tests.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_every_live_tests_name_and_the_longest_tests_name_are_printed(): void {
+		$live  = self::testsIn( 'tests/Integration/Live' );
+		$tests = self::testsIn( 'tests/Unit', 'tests/Integration' );
+		$names = array_merge( array_keys( $live ), array( self::longest( array_keys( $tests ) ) ) );
+
+		$this->assertCount( array_sum( array_column( PayPalRun::declaration()->liveParts(), 'tests' ) ), $live, 'The live tests read are those the live parts run.' );
+
+		foreach ( $names as $name ) {
+			$line = '1) ' . $tests[ $name ] . '::' . $name . "\n";
+
+			$this->assertNull( PayPalRun::guard()->shapeOf( $name ), $name . ' is printed.' );
+			$this->assertSame( $line, PayPalRun::guard()->redact( $line ) );
+		}
 	}
 
 	/**
@@ -166,5 +225,68 @@ final class LiveDeclarationTest extends TestCase {
 
 		$this->assertMatchesRegularExpression( '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $uuid );
 		$this->assertNotSame( $uuid, PayPalRun::uuid() );
+	}
+
+	/**
+	 * Returns the test methods of the plugin's test classes under directories, each with its class, read from their files: a test added later is read too.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string ...$directories The directories, from the plugin's root.
+	 * @return array<string, string> Each test's class, by its method's name.
+	 */
+	private static function testsIn( string ...$directories ): array {
+		$tests = array();
+
+		foreach ( $directories as $directory ) {
+			$files = new \RecursiveIteratorIterator( new \RecursiveDirectoryIterator( dirname( __DIR__, 2 ) . '/' . $directory, \FilesystemIterator::SKIP_DOTS ) );
+
+			/**
+			 * One file under the directory.
+			 *
+			 * @var \SplFileInfo $file
+			 */
+			foreach ( $files as $file ) {
+				if ( ! str_ends_with( $file->getFilename(), 'Test.php' ) ) {
+					continue;
+				}
+
+				$code = (string) file_get_contents( $file->getPathname() );
+
+				preg_match( '/^namespace\s+([^;]+);/m', $code, $namespace );
+				preg_match_all( '/\bfunction\s+(test_\w+)\s*\(/', $code, $methods );
+
+				foreach ( $methods[1] as $method ) {
+					$tests[ $method ] = ( $namespace[1] ?? '' ) . '\\' . $file->getBasename( '.php' );
+				}
+			}
+		}
+
+		return $tests;
+	}
+
+	/**
+	 * Returns the longest of names.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string[] $names The names.
+	 * @return string The longest, the first of those as long.
+	 */
+	private static function longest( array $names ): string {
+		return array_reduce( $names, static fn( string $longest, string $name ): string => strlen( $name ) > strlen( $longest ) ? $name : $longest, '' );
+	}
+
+	/**
+	 * Returns a value of the letters, digits, `_` and `-` of PayPal's credentials, of a length, after a beginning: built when the test runs, so that the repository keeps no literal of a credential's shape.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $beginning The beginning.
+	 * @param int    $length    The length.
+	 * @return string The value.
+	 */
+	private static function credential( string $beginning, int $length ): string {
+		return substr( $beginning . str_repeat( 'UnitTest-Canary_0', 8 ), 0, $length );
 	}
 }

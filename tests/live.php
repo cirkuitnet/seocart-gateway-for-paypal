@@ -124,17 +124,21 @@ return new class() extends LiveDeclaration {
 	}
 
 	/**
-	 * Returns the shape of PayPal's credentials: a client id, a secret or an access token is a run of 48 letters, digits, `_` and `-` or more.
+	 * Returns the shape of PayPal's credentials: a client id, a secret or an access token is a run of 48 letters, digits, `_` and `-` or more, unless the whole run is a test's name.
 	 *
 	 * PayPal's ids are shorter (an event's, the longest, has 38), and so is a commit's 40-character
-	 * hash, which a verdict names.
+	 * hash, which a verdict names. A test's name is printed, as PHPUnit names a failing test with it
+	 * and the live tests' names are longer: a run that is `test_` and then lower-case letters,
+	 * digits and `_` alone, to its end. The run is read from its first character, so one that only
+	 * starts as a test's name does and goes on with an upper-case letter or a `-`, or that holds a
+	 * test's name after other characters, is hidden whole.
 	 *
 	 * @since 0.2.0
 	 *
 	 * @return array<string, string> The pattern, by what it matches.
 	 */
 	public function shapes(): array {
-		return array( 'a credential' => '/[A-Za-z0-9_\-]{48,}/' );
+		return array( 'a credential' => '/(?<![A-Za-z0-9_\-])(?!test_[a-z0-9_]*+(?![A-Za-z0-9_\-]))[A-Za-z0-9_\-]{48,}/' );
 	}
 
 	/**
