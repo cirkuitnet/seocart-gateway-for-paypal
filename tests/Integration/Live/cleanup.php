@@ -20,8 +20,7 @@ declare( strict_types=1 );
 
 use SEOCart\GatewayForPayPal\Tests\Integration\Live\PayPalTestApi;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\CleanupSelection;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\LiveRun;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 
 if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
@@ -31,7 +30,7 @@ if ( 'cli' !== PHP_SAPI ) {
 require dirname( __DIR__, 2 ) . '/bootstrap.php';
 require_once __DIR__ . '/PayPalTestApi.php';
 
-$seocart_gateway_for_paypal_run_list = LiveRun::orders( is_readable( $argv[2] ?? '' ) ? (string) file_get_contents( $argv[2] ) : '' );
+$seocart_gateway_for_paypal_run_list = PayPalRun::orders( is_readable( $argv[2] ?? '' ) ? (string) file_get_contents( $argv[2] ) : '' );
 
 if ( ! is_readable( $argv[1] ?? '' ) ) {
 	printf( "cleanup: no settings file, so the run made no request to PayPal; %d orders on the run list.\n", count( $seocart_gateway_for_paypal_run_list ) );
@@ -78,7 +77,7 @@ foreach ( $seocart_gateway_for_paypal_void as $seocart_gateway_for_paypal_order 
 
 $seocart_gateway_for_paypal_held = CleanupSelection::authorizationsToVoid( $seocart_gateway_for_paypal_run_list, seocart_gateway_for_paypal_read_back( $seocart_gateway_for_paypal_api, $seocart_gateway_for_paypal_run_list, $seocart_gateway_for_paypal_failures ) );
 
-echo MessageGuard::say( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
+echo PayPalRun::guard()->say( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
 	"cleanup: %1\$d orders on the run list, %2\$d authorizations voided; afterwards %3\$d still held (%4\$s). No webhook was created or removed.\n",
 	count( $seocart_gateway_for_paypal_run_list ),
 	count( $seocart_gateway_for_paypal_void ),

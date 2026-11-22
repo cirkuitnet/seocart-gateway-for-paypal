@@ -160,17 +160,4 @@ final class CleanupSelection {
 
 		return array_values( $ids );
 	}
-
-	/**
-	 * Returns a run list's line: an order's id and its store uuid.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @param string $orderId The order's id.
-	 * @param string $uuid    The store uuid.
-	 * @return string The line, with its newline.
-	 */
-	public static function line( string $orderId, string $uuid ): string {
-		return $orderId . ' ' . $uuid . "\n";
-	}
 }

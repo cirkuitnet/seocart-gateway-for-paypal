@@ -22,7 +22,7 @@ declare( strict_types=1 );
 
 use SEOCart\GatewayForPayPal\Tests\Integration\Live\PayPalTestApi;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\CleanupSelection;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 
 if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
@@ -130,7 +130,7 @@ foreach ( $seocart_gateway_for_paypal_found as $seocart_gateway_for_paypal_autho
 	}
 }
 
-echo MessageGuard::say( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
+echo PayPalRun::guard()->say( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
 	"void-held: %1\$d orders named; the transaction search for %2\$s: %3\$s; %4\$d authorizations read by id, %5\$d of them not authorizations; %6\$d authorizations seen in all.\n",
 	count( $seocart_gateway_for_paypal_orders ),
 	$seocart_gateway_for_paypal_day,
@@ -141,10 +141,10 @@ echo MessageGuard::say( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNo
 );
 
 foreach ( $seocart_gateway_for_paypal_voided as $seocart_gateway_for_paypal_id => $seocart_gateway_for_paypal_status ) {
-	echo MessageGuard::say( "void-held: authorization %1\$s voided; PayPal now says %2\$s.\n", MessageGuard::shown( (string) $seocart_gateway_for_paypal_id ), $seocart_gateway_for_paypal_status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+	echo PayPalRun::guard()->say( "void-held: authorization %1\$s voided; PayPal now says %2\$s.\n", PayPalRun::guard()->shown( (string) $seocart_gateway_for_paypal_id ), $seocart_gateway_for_paypal_status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 }
 
-echo MessageGuard::say( "void-held: %d authorizations voided. No webhook was created or removed.\n", count( $seocart_gateway_for_paypal_voided ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+echo PayPalRun::guard()->say( "void-held: %d authorizations voided. No webhook was created or removed.\n", count( $seocart_gateway_for_paypal_voided ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 
 foreach ( $seocart_gateway_for_paypal_failures as $seocart_gateway_for_paypal_failure ) {
 	printf( "void-held: %s\n", $seocart_gateway_for_paypal_failure ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- PayPalTestApi's message, built by MessageGuard.

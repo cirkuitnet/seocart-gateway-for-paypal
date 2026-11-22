@@ -1,6 +1,6 @@
 <?php
 /**
- * LiveRun: the files one run against PayPal's sandbox writes, and the browser it approves cards in
+ * PayPalRun: what the live tests, their cleanup and their scripts share of one run against PayPal's sandbox, beside SEOCart's
  *
  * @package SEOCart\GatewayForPayPal
  * @since   0.2.0
@@ -11,46 +11,21 @@ declare( strict_types=1 );
 
 namespace SEOCart\GatewayForPayPal\Tests\Support\Live;
 
+use SEOCart\Tests\Conformance\Payment\Live\LiveDeclaration;
+use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
+use SEOCart\Tests\Conformance\Payment\Live\MessageGuard;
+
 /**
- * Names the files one run against PayPal's sandbox writes, and runs the browser script that approves an order in PayPal's card fields.
+ * Runs the browser script that approves an order in PayPal's card fields, keeps the run list to orders, and gives the live tests the plugin's declaration and its guard.
  *
- * The workflow's script, bin/ci/paypal-sandbox.sh, creates the files in the runner's temporary
- * directory and names them in the environment; the live tests append to them; the cleanup and the
- * verdict read them. The run list holds, per line, the id of each order the run created and the
- * store uuid it was created for, and nothing else, so the cleanup voids what the run left
- * authorized. The report holds `key=value` lines of what the run's summary shows: counts and
- * PayPal's words; never a body, a secret or an address with a query.
+ * The run's files, its report and the guard are SEOCart's (tests/Conformance/Payment/Live), built
+ * from this plugin's tests/live.php. What is PayPal's alone is here: the card script and what it
+ * answers, and the run list read and written as orders, each with the store uuid it was created
+ * for, so the cleanup voids what the run left authorized.
  *
  * @since 0.2.0
  */
-final class LiveRun {
-
-	/**
-	 * The environment variable naming the run list.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @var string
-	 */
-	public const RUN_LIST = 'SEOCART_LIVE_RUN_LIST';
-
-	/**
-	 * The environment variable naming the report.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @var string
-	 */
-	public const REPORT = 'SEOCART_LIVE_REPORT';
-
-	/**
-	 * The environment variable naming the browser the card script launches, for a machine Playwright downloads none for; empty for Playwright's own.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @var string
-	 */
-	public const BROWSER = 'SEOCART_LIVE_BROWSER';
+final class PayPalRun {
 
 	/**
 	 * The words the card script prints: the fields approved with no challenge or refused before any; a challenge was shown, answered, and the fields then approved or refused; a field never held what was typed, so nothing was submitted; or no fields, no control of the challenge, no answer.
@@ -145,7 +120,7 @@ final class LiveRun {
 					'currency' => $currency,
 					'card'     => $card,
 					'control'  => $control,
-					'browser'  => (string) getenv( self::BROWSER ),
+					'browser'  => (string) getenv( LiveRun::BROWSER ),
 					'attempt'  => $attempt,
 				)
 			) . "\n"
@@ -207,46 +182,11 @@ final class LiveRun {
 	}
 
 	/**
-	 * Returns the file an environment variable names.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @throws \RuntimeException When the variable names no file that can be written.
-	 *
-	 * @param string $variable The variable.
-	 * @return string The file.
-	 */
-	public static function file( string $variable ): string {
-		$file = (string) getenv( $variable );
-
-		if ( '' === $file || ! is_writable( file_exists( $file ) ? $file : dirname( $file ) ) ) {
-			throw new \RuntimeException( sprintf( 'The live tests write to the file %s names: bin/ci/paypal-sandbox.sh sets it.', $variable ) );
-		}
-
-		return $file;
-	}
-
-	/**
-	 * Appends a line to the file an environment variable names, readable by its owner alone.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @param string $variable The variable.
-	 * @param string $line     The line, with its newline.
-	 */
-	public static function append( string $variable, string $line ): void {
-		$file = self::file( $variable );
-
-		file_put_contents( $file, $line, FILE_APPEND | LOCK_EX );
-		chmod( $file, 0600 );
-	}
-
-	/**
 	 * Adds an order the run created to the run list, its id written whole.
 	 *
 	 * The run list is never printed: the cleanup reads it, and names an id in what it prints only as
-	 * MessageGuard shows it. So an id is written as PayPal gave it, even one whose digits pass a
-	 * card number's checksum, as PayPal's ids may; the cleanup must find every order the run made.
+	 * the guard shows it. So an id is written as PayPal gave it, even one whose digits pass a card
+	 * number's checksum, as PayPal's ids may; the cleanup must find every order the run made.
 	 *
 	 * @since 0.2.0
 	 *
@@ -260,43 +200,11 @@ final class LiveRun {
 			throw new \LogicException( 'The run list holds an order\'s id and a store uuid, and nothing else.' );
 		}
 
-		self::append( self::RUN_LIST, CleanupSelection::line( $orderId, $intentUuid ) );
+		LiveRun::append( LiveRun::RUN_LIST, LiveRun::line( $orderId, $intentUuid ) );
 	}
 
 	/**
-	 * Adds a fact to the run's report, its value made safe to print.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @param string     $key   The fact, such as `liability-shift`: letters, digits and `-`.
-	 * @param string|int $value Its value, on one line.
-	 */
-	public static function report( string $key, string|int $value ): void {
-		self::append( self::REPORT, MessageGuard::say( "%s=%s\n", $key, str_replace( array( "\r", "\n" ), ' ', (string) $value ) ) );
-	}
-
-	/**
-	 * Reads a report: its facts, the last value of each.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @param string $text The report's text.
-	 * @return array<string, string> The facts, by key.
-	 */
-	public static function facts( string $text ): array {
-		$facts = array();
-
-		foreach ( explode( "\n", $text ) as $line ) {
-			if ( 1 === preg_match( '/^([a-z][a-z0-9\-]*)=(.*)$/D', $line, $match ) ) {
-				$facts[ $match[1] ] = $match[2];
-			}
-		}
-
-		return $facts;
-	}
-
-	/**
-	 * Reads a run list: the store uuid of each order, by the order's id.
+	 * Reads a run list as orders: the store uuid of each order, by the order's id.
 	 *
 	 * @since 0.2.0
 	 *
@@ -313,5 +221,27 @@ final class LiveRun {
 		}
 
 		return $orders;
+	}
+
+	/**
+	 * Returns the plugin's declaration of its live workflow, tests/live.php.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return LiveDeclaration The declaration.
+	 */
+	public static function declaration(): LiveDeclaration {
+		return LiveDeclaration::load( dirname( __DIR__, 3 ) );
+	}
+
+	/**
+	 * Returns the guard every message of the live tests and their scripts is built through, with PayPal's shape.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @return MessageGuard The guard.
+	 */
+	public static function guard(): MessageGuard {
+		return self::declaration()->guard();
 	}
 }

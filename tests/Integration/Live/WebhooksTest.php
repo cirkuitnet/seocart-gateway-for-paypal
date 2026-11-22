@@ -16,8 +16,9 @@ use SEOCart\Contracts\Payment\WebhookEnvelope;
 use SEOCart\Contracts\Payment\WebhookReadingKind;
 use SEOCart\GatewayForPayPal\CertificateCache;
 use SEOCart\GatewayForPayPal\Gateway;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\LiveRun;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 use SEOCart\GatewayForPayPal\WebhookReader;
+use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
 
 require_once __DIR__ . '/LivePayPalCase.php';
 
@@ -137,7 +138,7 @@ final class WebhooksTest extends LivePayPalCase {
 			}
 		}
 
-		LiveRun::report( 'events', count( $listed ) . ' listed for the run\'s authorization' );
+		LiveRun::report( PayPalRun::declaration(), 'events', count( $listed ) . ' listed for the run\'s authorization' );
 		$this->assertSame( array( 'PAYMENT.AUTHORIZATION.CREATED' ), $listed, 'PayPal lists no event of the run\'s authorization, of the type and object the ledger holds.' );
 
 		$this->void( $placed['intent_uuid'] );

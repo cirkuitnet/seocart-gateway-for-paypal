@@ -15,20 +15,20 @@ use SEOCart\Checkout\Domain\CheckoutError;
 use SEOCart\GatewayForPayPal\Gateway;
 use SEOCart\GatewayForPayPal\Tests\Integration\PayPalSuiteDeclarations;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\CleanupSelection;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\LiveRun;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 use SEOCart\Order\Infrastructure\OrderTables;
 use SEOCart\Payment\Infrastructure\PaymentTables;
 use SEOCart\Support\Error\CodedException;
 use SEOCart\Tests\Conformance\Payment\ConformanceHarness;
 use SEOCart\Tests\Conformance\Payment\Exchange;
+use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
 use SEOCart\Tests\Conformance\Payment\RecordingTransport;
 
 // SEOCart's integration bootstrap autoloads this plugin's src/ alone: the suite's declarations, the live tests' support and their own client are loaded by their path.
 require_once dirname( __DIR__ ) . '/PayPalSuiteDeclarations.php';
 require_once __DIR__ . '/PayPalTestApi.php';
 
-foreach ( array( 'MessageGuard', 'LiveRun', 'CleanupSelection' ) as $seocart_gateway_for_paypal_class ) {
+foreach ( array( 'PayPalRun', 'CleanupSelection' ) as $seocart_gateway_for_paypal_class ) {
 	require_once dirname( __DIR__, 2 ) . '/Support/Live/' . $seocart_gateway_for_paypal_class . '.php';
 }
 
@@ -180,7 +180,7 @@ abstract class LivePayPalCase extends ConformanceHarness {
 			$created = CleanupSelection::createdBy( array_map( static fn( Exchange $exchange ): array => $exchange->toTape(), array_slice( $this->transport->exchanges(), $sentBefore ) ) );
 
 			foreach ( $created as $orderId => $intentUuid ) {
-				LiveRun::created( $orderId, $intentUuid );
+				PayPalRun::created( $orderId, $intentUuid );
 			}
 		}
 
@@ -206,8 +206,8 @@ abstract class LivePayPalCase extends ConformanceHarness {
 	 * @param array<string, mixed>  $placed  The placement, whose next action names the order.
 	 * @param array<string, string> $card    The card.
 	 * @param string                $control `complete` or `fail`, for a 3-D Secure challenge.
-	 * @param int                   $attempt 1 for the payment's first try, 2 for the one more LiveRun::mayTryAgain() allows.
-	 * @return string What the browser script answered: one of LiveRun::CARD_WORDS, or an error's name.
+	 * @param int                   $attempt 1 for the payment's first try, 2 for the one more PayPalRun::mayTryAgain() allows.
+	 * @return string What the browser script answered: one of PayPalRun::CARD_WORDS, or an error's name.
 	 */
 	protected function approveInBrowser( array $placed, array $card, string $control, int $attempt ): string {
 		$action = (array) ( $placed['next_action'] ?? array() );
@@ -216,7 +216,7 @@ abstract class LivePayPalCase extends ConformanceHarness {
 		$this->assertSame( 'sdk', $action['type'] ?? null, 'The card placement asked for no step of PayPal\'s script.' );
 		$this->assertSame( $placed['paypal_order'], $action['client_token'] ?? null, 'The step\'s handle is not the order PayPal made.' );
 
-		return LiveRun::approveCard( $this->paypal->clientId(), (string) $placed['paypal_order'], self::CURRENCY, $card, $control, $attempt );
+		return PayPalRun::approveCard( $this->paypal->clientId(), (string) $placed['paypal_order'], self::CURRENCY, $card, $control, $attempt );
 	}
 
 	/**
@@ -233,24 +233,24 @@ abstract class LivePayPalCase extends ConformanceHarness {
 	 * @param array<string, string> $card    The card.
 	 * @param string                $label   What the run's report names the card fields' answer by.
 	 * @param string                $control Optional. `complete` or `fail`, for a 3-D Secure challenge. Default `complete`.
-	 * @return array{0: array<string, mixed>, 1: string} The placement the answer is about, and the answer: one of LiveRun::CARD_WORDS, or an error's name.
+	 * @return array{0: array<string, mixed>, 1: string} The placement the answer is about, and the answer: one of PayPalRun::CARD_WORDS, or an error's name.
 	 */
 	protected function placeAndApprove( array $card, string $label, string $control = 'complete' ): array {
 		$placed = $this->placeLive( 'card' );
 		$word   = $this->approveInBrowser( $placed, $card, $control, 1 );
 
-		if ( ! LiveRun::mayTryAgain() ) {
-			LiveRun::report( 'card-fields-' . $label, LiveRun::lastCard() );
+		if ( ! PayPalRun::mayTryAgain() ) {
+			LiveRun::report( PayPalRun::declaration(), 'card-fields-' . $label, PayPalRun::lastCard() );
 
 			return array( $placed, $word );
 		}
 
-		LiveRun::report( 'card-fields-' . $label, LiveRun::lastCard() . ', tried again' );
+		LiveRun::report( PayPalRun::declaration(), 'card-fields-' . $label, PayPalRun::lastCard() . ', tried again' );
 
 		$placed = $this->placeLive( 'card' );
 		$word   = $this->approveInBrowser( $placed, $card, $control, 2 );
 
-		LiveRun::report( 'card-fields-' . $label . '-again', LiveRun::lastCard() );
+		LiveRun::report( PayPalRun::declaration(), 'card-fields-' . $label . '-again', PayPalRun::lastCard() );
 
 		return array( $placed, $word );
 	}
@@ -299,6 +299,6 @@ abstract class LivePayPalCase extends ConformanceHarness {
 	 * @return string The value as a message may show it.
 	 */
 	protected static function shown( string $value ): string {
-		return MessageGuard::shown( $value );
+		return PayPalRun::guard()->shown( $value );
 	}
 }

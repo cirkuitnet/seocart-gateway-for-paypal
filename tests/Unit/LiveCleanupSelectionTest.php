@@ -14,6 +14,7 @@ namespace SEOCart\GatewayForPayPal\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use SEOCart\GatewayForPayPal\Tests\Support\Fixtures;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\CleanupSelection;
+use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
 
 /**
  * The orders a recording created are read from its tapes: each create the sandbox answered with an
@@ -49,7 +50,7 @@ final class LiveCleanupSelectionTest extends TestCase {
 		$read    = array( 'request' => array( 'method' => 'GET' ) + $created['request'] ) + $created;
 
 		$this->assertSame( array( Fixtures::ORDER_ID => Fixtures::INTENT_UUID ), CleanupSelection::createdBy( array( $created, $refused, $read, array() ) ) );
-		$this->assertSame( Fixtures::ORDER_ID . ' ' . Fixtures::INTENT_UUID . "\n", CleanupSelection::line( Fixtures::ORDER_ID, Fixtures::INTENT_UUID ) );
+		$this->assertSame( Fixtures::ORDER_ID . ' ' . Fixtures::INTENT_UUID . "\n", LiveRun::line( Fixtures::ORDER_ID, Fixtures::INTENT_UUID ) );
 	}
 
 	/**

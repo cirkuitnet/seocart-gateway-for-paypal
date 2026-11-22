@@ -13,7 +13,7 @@ namespace SEOCart\GatewayForPayPal\Tests\Integration\Live;
 
 use SEOCart\GatewayForPayPal\Gateway;
 use SEOCart\GatewayForPayPal\PayPalApi;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 
 /**
  * Asks PayPal's sandbox what the live tests check, makes the one vaulted card, and ends what a run leaves open: reads, an order to vault a card, its authorization and void.
@@ -209,7 +209,7 @@ final class PayPalTestApi {
 		$curl = curl_init( Gateway::API_BASES['test'] . $target );
 
 		if ( false === $curl ) {
-			throw new \RuntimeException( MessageGuard::say( 'A request for %1$s %2$s could not be made.', $method, $path ) );
+			throw new \RuntimeException( PayPalRun::guard()->say( 'A request for %1$s %2$s could not be made.', $method, $path ) );
 		}
 
 		curl_setopt_array(
@@ -230,7 +230,7 @@ final class PayPalTestApi {
 		// phpcs:enable
 
 		if ( 0 !== $failed || ! is_string( $answer ) ) {
-			throw new \RuntimeException( MessageGuard::say( 'PayPal\'s sandbox could not be reached for %1$s %2$s (curl error %3$d).', $method, $path, $failed ) );
+			throw new \RuntimeException( PayPalRun::guard()->say( 'PayPal\'s sandbox could not be reached for %1$s %2$s (curl error %3$d).', $method, $path, $failed ) );
 		}
 
 		$decoded = '' === trim( $answer ) ? array() : json_decode( $answer, true );
@@ -239,7 +239,7 @@ final class PayPalTestApi {
 			$name  = is_array( $decoded ) && is_string( $decoded['name'] ?? null ) && 1 === preg_match( '/^[A-Z_]{1,64}$/D', $decoded['name'] ) ? $decoded['name'] : 'none';
 			$issue = is_array( $decoded ) && is_string( $decoded['details'][0]['issue'] ?? null ) && 1 === preg_match( '/^[A-Z_]{1,64}$/D', $decoded['details'][0]['issue'] ) ? $decoded['details'][0]['issue'] : 'none';
 
-			throw new \RuntimeException( MessageGuard::say( 'PayPal\'s sandbox answered %1$s %2$s with HTTP %3$d (%4$s, issue %5$s).', $method, $path, $status, $name, $issue ) );
+			throw new \RuntimeException( PayPalRun::guard()->say( 'PayPal\'s sandbox answered %1$s %2$s with HTTP %3$d (%4$s, issue %5$s).', $method, $path, $status, $name, $issue ) );
 		}
 
 		return $decoded;

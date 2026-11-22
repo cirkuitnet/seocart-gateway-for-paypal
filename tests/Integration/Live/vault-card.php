@@ -21,8 +21,7 @@
 declare( strict_types=1 );
 
 use SEOCart\GatewayForPayPal\Tests\Integration\Live\PayPalTestApi;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\LiveRun;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\MessageGuard;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 
 if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
@@ -50,7 +49,7 @@ const SEOCART_GATEWAY_FOR_PAYPAL_TEST_CARD = array(
 );
 
 $seocart_gateway_for_paypal_api  = PayPalTestApi::fromSettingsFile( $argv[1] );
-$seocart_gateway_for_paypal_uuid = LiveRun::uuid();
+$seocart_gateway_for_paypal_uuid = PayPalRun::uuid();
 
 $seocart_gateway_for_paypal_order = $seocart_gateway_for_paypal_api->post(
 	'v2/checkout/orders',
@@ -79,11 +78,11 @@ $seocart_gateway_for_paypal_order = $seocart_gateway_for_paypal_api->post(
 );
 $seocart_gateway_for_paypal_id    = (string) ( $seocart_gateway_for_paypal_order['id'] ?? '' );
 
-echo MessageGuard::say( "vault-card: order %1\$s created, %2\$s.\n", MessageGuard::shown( $seocart_gateway_for_paypal_id ), (string) ( $seocart_gateway_for_paypal_order['status'] ?? 'no status' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
+echo PayPalRun::guard()->say( "vault-card: order %1\$s created, %2\$s.\n", PayPalRun::guard()->shown( $seocart_gateway_for_paypal_id ), (string) ( $seocart_gateway_for_paypal_order['status'] ?? 'no status' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a command-line script's message, built by MessageGuard.
 
-$seocart_gateway_for_paypal_word = LiveRun::approveCard( $seocart_gateway_for_paypal_api->clientId(), $seocart_gateway_for_paypal_id, 'USD', SEOCART_GATEWAY_FOR_PAYPAL_TEST_CARD, 'complete' );
+$seocart_gateway_for_paypal_word = PayPalRun::approveCard( $seocart_gateway_for_paypal_api->clientId(), $seocart_gateway_for_paypal_id, 'USD', SEOCART_GATEWAY_FOR_PAYPAL_TEST_CARD, 'complete' );
 
-echo MessageGuard::say( "vault-card: the card fields answered %s.\n", $seocart_gateway_for_paypal_word ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+echo PayPalRun::guard()->say( "vault-card: the card fields answered %s.\n", $seocart_gateway_for_paypal_word ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 
 if ( ! in_array( $seocart_gateway_for_paypal_word, array( 'approved', 'challenge-passed' ), true ) ) {
 	echo "vault-card: nothing was authorized, so nothing is held; the order lapses at PayPal.\n";
@@ -94,12 +93,12 @@ $seocart_gateway_for_paypal_authorized = $seocart_gateway_for_paypal_api->post( 
 $seocart_gateway_for_paypal_auth       = $seocart_gateway_for_paypal_authorized['purchase_units'][0]['payments']['authorizations'][0] ?? array();
 $seocart_gateway_for_paypal_vault      = $seocart_gateway_for_paypal_authorized['payment_source']['card']['attributes']['vault'] ?? array();
 
-echo MessageGuard::say( "vault-card: authorization %1\$s %2\$s; vaulted card %3\$s, %4\$s.\n", MessageGuard::shown( (string) ( $seocart_gateway_for_paypal_auth['id'] ?? 'none' ) ), (string) ( $seocart_gateway_for_paypal_auth['status'] ?? 'no status' ), MessageGuard::shown( (string) ( $seocart_gateway_for_paypal_vault['id'] ?? 'none' ) ), (string) ( $seocart_gateway_for_paypal_vault['status'] ?? 'no status' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+echo PayPalRun::guard()->say( "vault-card: authorization %1\$s %2\$s; vaulted card %3\$s, %4\$s.\n", PayPalRun::guard()->shown( (string) ( $seocart_gateway_for_paypal_auth['id'] ?? 'none' ) ), (string) ( $seocart_gateway_for_paypal_auth['status'] ?? 'no status' ), PayPalRun::guard()->shown( (string) ( $seocart_gateway_for_paypal_vault['id'] ?? 'none' ) ), (string) ( $seocart_gateway_for_paypal_vault['status'] ?? 'no status' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 
 if ( is_string( $seocart_gateway_for_paypal_auth['id'] ?? null ) && 'CREATED' === ( $seocart_gateway_for_paypal_auth['status'] ?? null ) ) {
 	$seocart_gateway_for_paypal_api->post( 'v2/payments/authorizations/' . $seocart_gateway_for_paypal_auth['id'] . '/void', array(), $seocart_gateway_for_paypal_uuid . ':void' );
 
-	echo MessageGuard::say( "vault-card: authorization %s voided.\n", $seocart_gateway_for_paypal_auth['id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+	echo PayPalRun::guard()->say( "vault-card: authorization %s voided.\n", $seocart_gateway_for_paypal_auth['id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 }
 
 exit( is_string( $seocart_gateway_for_paypal_vault['id'] ?? null ) && 'VAULTED' === ( $seocart_gateway_for_paypal_vault['status'] ?? null ) ? 0 : 1 );

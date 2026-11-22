@@ -15,8 +15,9 @@ use SEOCart\Checkout\Infrastructure\Jobs\ReconcileStalePlacements;
 use SEOCart\Contracts\Payment\Mode;
 use SEOCart\GatewayForPayPal\Gateway;
 use SEOCart\GatewayForPayPal\PayPalApi;
-use SEOCart\GatewayForPayPal\Tests\Support\Live\LiveRun;
+use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
 use SEOCart\Tests\Conformance\Payment\Exchange;
+use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
 use SEOCart\Tests\Support\Payment\GatewayKernel;
 
 require_once __DIR__ . '/LivePayPalCase.php';
@@ -54,7 +55,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		$this->assertSame( array( 'authorize', 'approved' ), array( $answer->operation->value, $answer->outcome->value ), 'The resume did not authorize the approved order.' );
 
 		$shift = (string) ( $this->paypalOrder( (string) $placed['paypal_order'] )['payment_source']['card']['authentication_result']['liability_shift'] ?? 'none' );
-		LiveRun::report( 'liability-shift', 'step-up ' . self::shown( $shift ) );
+		LiveRun::report( PayPalRun::declaration(), 'liability-shift', 'step-up ' . self::shown( $shift ) );
 		$this->assertContains( $shift, array( 'POSSIBLE', 'YES' ) );
 
 		$this->end();
@@ -86,7 +87,7 @@ final class ThreeDSecureTest extends LivePayPalCase {
 		$this->assertSame( 'challenge-passed', $word );
 
 		$shift = $this->liabilityShiftOf( (string) $accepted['paypal_order'] );
-		LiveRun::report( 'liability-shift', 'failed step-up ' . self::shown( $shift ) );
+		LiveRun::report( PayPalRun::declaration(), 'liability-shift', 'failed step-up ' . self::shown( $shift ) );
 		$this->assertSame( 'NO', $shift, 'The failing step-up card no longer fails its check: the test proves nothing of the policy.' );
 
 		$authorized = $this->payments()->queryGateway( $this->ref( $accepted['intent_uuid'] ) );

@@ -17,7 +17,7 @@ use SEOCart\Tests\Conformance\Payment\Live\SettingsLast;
 use SEOCart\Tests\Conformance\Payment\Live\WorkflowFacts;
 
 /**
- * The PayPal sandbox workflow keeps every fact SEOCart's WorkflowFacts reads with the plugin's declaration (tests/live.php): it starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to the env of a step that needs it, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, has as its jobs and as the choices of its parts input the parts the declaration states, and checks SEOCart out before its verdict. Once a job's settings file is written, which holds the sandbox app's secret, the job runs only what SettingsLast's closed lists allow: SEOCart's suite and live steps, and PayPal's configure, checkout and cleanup, which run only commands that cannot install, download or build. Its clean-up lists the checkout site's orders before it voids, and, when it cannot list them, voids what is listed, then fails and keeps what it needs to run again.
+ * The PayPal sandbox workflow keeps every fact SEOCart's WorkflowFacts reads with the plugin's declaration (tests/live.php): it starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to the env of a step that needs it, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, has as its jobs and as the choices of its parts input the parts the declaration states, and checks SEOCart out before its verdict. Once a job's settings file is written, which holds the sandbox app's secret, the job runs only what SettingsLast's closed lists allow: SEOCart's suite and live steps, and PayPal's configure, checkout and cleanup, which run only commands that cannot install, download or build. Its clean-up lists the checkout site's orders before it voids, and, when it cannot list them, voids what is listed, then fails and keeps what it needs to run again. No class of SEOCart's live workflow is left copied in the plugin's tests.
  *
  * Pins, the PHP set-up, Composer, the Node.js version and the reference to SEOCart's action are
  * SEOCart's check of workflows' (`sh ../seocart/bin/ci/check-workflows.sh .`), which the required
@@ -30,7 +30,8 @@ use SEOCart\Tests\Conformance\Payment\Live\WorkflowFacts;
  *   list fails naming the action;
  * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails;
  * - in the file, the harvest's query piped into `tr` again, or the clean-up removing its folder
- *   whatever became of the harvest: the test of a failed harvest fails.
+ *   whatever became of the harvest: the test of a failed harvest fails;
+ * - tests/Support/Live/Verdict.php restored: the copies' test fails naming it.
  *
  * @since 0.2.0
  */
@@ -240,6 +241,15 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$this->assertSame( 0, $status, implode( "\n", $output ) );
 
 		$this->assertStringContainsString( 'The expressions of the workflow could not be read', implode( "\n", $output ) );
+	}
+
+	/**
+	 * Tests that no file of the plugin's tests declares a class of SEOCart's live workflow: a copy left behind would drift from SEOCart's.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_no_class_of_seocarts_live_workflow_is_left_copied(): void {
+		$this->assertSame( array(), WorkflowFacts::copies( dirname( __DIR__, 2 ) ) );
 	}
 
 	/**
