@@ -7,9 +7,13 @@
 # never a check a merge waits for: a provider's outage must not block one.
 #
 # SEOCart's extension workflow (extension-ci.yml) takes no secrets, so each job here repeats its
-# set-up: the two checkouts, the SEOCart commit chosen as it chooses it (core-ref on these events,
-# else the pin read from ext/seocart-core.env when the job runs), the MySQL service and the PHP
-# set-up, written once below as YAML anchors. The steps themselves are bin/ci/paypal-sandbox.sh.
+# checkouts: the extension, and SEOCart beside it at the commit chosen as that workflow chooses it
+# (core-ref on these events, else the pin read from ext/seocart-core.env when the job runs),
+# written once below as YAML anchors with the MySQL service. Each job then sets up with SEOCart's
+# action (./seocart/.github/actions/extension-live-setup), which installs everything the job needs
+# before its settings step. The steps that are no provider's are SEOCart's,
+# seocart/bin/ci/extension-live.sh, read from this plugin's tests/live.php; PayPal's own are
+# bin/ci/paypal-sandbox.sh.
 #
 # Each secret reaches only the steps that need it, through their env. The tests read the
 # credentials from one file, readable by its owner alone, in the runner's temporary directory,
@@ -149,20 +153,11 @@ jobs:
             - &heads
               name: Note the commits under test
               id: heads
-              run: sh ext/bin/ci/paypal-sandbox.sh heads
+              run: sh seocart/bin/ci/extension-live.sh heads ext
 
-            - &setup-php
-              name: Set up PHP and Composer
-              uses: ./seocart/.github/actions/setup-php-composer
-              with:
-                  working-directory: seocart
-                  extensions: mysqli
-                  tools: wp-cli:2.12.0
-                  install: full
-
-            - &prepare-wordpress
-              name: Download WordPress and write SEOCart's test configuration
-              run: sh seocart/bin/ci/prepare-integration.sh "$WORDPRESS_VERSION"
+            - &setup
+              name: Set up PHP, Composer, WordPress and SEOCart's test configuration
+              uses: ./seocart/.github/actions/extension-live-setup
 
             # Written last, just before the tests that read it.
             - &settings
@@ -178,7 +173,7 @@ jobs:
             # the tapes it records onto the run list, which the cleanup works from.
             - name: Run the conformance suite against PayPal's sandbox
               id: run
-              run: sh ext/bin/ci/paypal-sandbox.sh conformance
+              run: sh seocart/bin/ci/extension-live.sh conformance ext
 
             - &cleanup
               name: Void at PayPal what the run left authorized, and remove the settings file
@@ -204,29 +199,11 @@ jobs:
             - *choose-core
             - *checkout-core
             - *heads
-            - *setup-php
-            - *prepare-wordpress
 
-            - &setup-node
-              name: Set up Node.js
-              uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+            - name: Set up PHP, Composer, WordPress, Node.js, the browser scripts' dependencies and Chromium
+              uses: ./seocart/.github/actions/extension-live-setup
               with:
-                  node-version-file: seocart/.nvmrc
-
-            - &browser-dependencies
-              name: Install the browser scripts' dependencies
-              working-directory: ext/tests/browser
-              run: npm ci
-
-            - &chromium
-              name: Install Chromium for Playwright
-              working-directory: ext/tests/browser
-              run: npx playwright install --with-deps chromium
-
-            - &browser-unit
-              name: Test the browser scripts
-              working-directory: ext/tests/browser
-              run: node --test
+                  browser: 'true'
 
             - *settings
 
@@ -234,7 +211,7 @@ jobs:
             # require and authorized under accept; a shopper who never acts; a vaulted card voided.
             - name: Run the 3-D Secure tests against PayPal's sandbox
               id: run
-              run: sh ext/bin/ci/paypal-sandbox.sh live three-d-secure
+              run: sh seocart/bin/ci/extension-live.sh live ext three-d-secure
 
             - *cleanup
 
@@ -255,20 +232,19 @@ jobs:
         steps:
             - *checkout-extension
             - *check-secrets
+            - *choose-core
+            - *checkout-core
 
             # Whether the repository holds the id of the owner's sandbox webhook, never the id itself:
             # without it the part runs nothing, says why, and the other parts run.
             - name: Check the webhook id
               id: webhook
-              run: sh ext/bin/ci/paypal-sandbox.sh webhook-id
+              run: sh seocart/bin/ci/extension-live.sh optional ext webhooks
               env:
                   PAYPAL_WEBHOOK_ID: ${{ secrets.PAYPAL_WEBHOOK_ID }}
 
-            - *choose-core
-            - *checkout-core
             - *heads
-            - *setup-php
-            - *prepare-wordpress
+            - *setup
             - *settings
 
             # The delivery fixtures verified with a certificate fetched from PayPal; the owner's
@@ -277,7 +253,7 @@ jobs:
             - name: Run the webhook tests against PayPal's sandbox
               id: run
               if: steps.webhook.outputs.webhook-id == 'present'
-              run: sh ext/bin/ci/paypal-sandbox.sh live webhooks
+              run: sh seocart/bin/ci/extension-live.sh live ext webhooks
 
             - *cleanup
 
@@ -299,16 +275,17 @@ jobs:
             - *choose-core
             - *checkout-core
             - *heads
-            - *setup-php
-            - *setup-node
-            - *browser-dependencies
-            - *chromium
-            - *browser-unit
+
+            - name: Set up PHP, Composer, Node.js, the browser scripts' dependencies and Chromium
+              uses: ./seocart/.github/actions/extension-live-setup
+              with:
+                  wordpress: 'false'
+                  browser: 'true'
 
             # WordPress on PHP's built-in server, SEOCart and this plugin installed from the zips
             # built here: all the job installs and builds, done before the settings file exists.
             - name: Build SEOCart, and install a site with it and the adapter
-              run: sh ext/bin/ci/paypal-sandbox.sh site
+              run: sh seocart/bin/ci/extension-live.sh site ext
 
             - *settings
 
@@ -335,10 +312,12 @@ jobs:
         timeout-minutes: 5
         steps:
             - *checkout-extension
+            - *choose-core
+            - *checkout-core
 
             # PHP from the runner's image: the verdict reads only the jobs' results and outputs.
             - name: Judge the run
-              run: sh ext/bin/ci/paypal-sandbox.sh verdict
+              run: sh seocart/bin/ci/extension-live.sh verdict ext
               env:
-                  PAYPAL_SANDBOX_NEEDS: ${{ toJSON(needs) }}
-                  PAYPAL_SANDBOX_PARTS: ${{ inputs.parts || 'all' }}
+                  SEOCART_LIVE_NEEDS: ${{ toJSON(needs) }}
+                  SEOCART_LIVE_PARTS: ${{ inputs.parts || 'all' }}
