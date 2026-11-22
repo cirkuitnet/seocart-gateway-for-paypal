@@ -17,7 +17,7 @@ use SEOCart\Tests\Conformance\Payment\Live\SettingsLast;
 use SEOCart\Tests\Conformance\Payment\Live\WorkflowFacts;
 
 /**
- * The PayPal sandbox workflow keeps every fact SEOCart's WorkflowFacts reads with the plugin's declaration (tests/live.php): it starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to the env of a step that needs it, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, has as its jobs and as the choices of its parts input the parts the declaration states, and checks SEOCart out before its verdict. Once a job's settings file is written, which holds the sandbox app's secret, the job runs only what SettingsLast's closed lists allow: SEOCart's suite and live steps, and PayPal's configure, checkout and cleanup, which run only commands that cannot install, download or build. Its clean-up lists the checkout site's orders before it voids, and, when it cannot list them, voids what is listed, then fails and keeps what it needs to run again. No class of SEOCart's live workflow is left copied in the plugin's tests.
+ * The PayPal sandbox workflow keeps every fact SEOCart's WorkflowFacts reads with the plugin's declaration (tests/live.php): it starts only on its schedule or by hand, has no job named ci, reads the repository and nothing more, runs each job only in this repository, gives a secret only to the env of a step that needs it, never traces the shell, prints the environment or uploads a file, runs one at a time uncancelled, limits every job's time, has as its jobs and as the choices of its parts input the parts the declaration states, and checks SEOCart out before its verdict. Once a job's settings file is written, which holds the sandbox app's secret, the job runs only what SettingsLast's closed lists allow: SEOCart's suite and live steps, and PayPal's configure, checkout and cleanup, which run only commands that cannot install, download or build. Its clean-up lists the checkout site's orders before it voids, and, when it cannot list them, voids what is listed, then fails and keeps what it needs to run again; it passes, saying why, when SEOCart was never checked out. No class of SEOCart's live workflow is left copied in the plugin's tests.
  *
  * Pins, the PHP set-up, Composer, the Node.js version and the reference to SEOCart's action are
  * SEOCart's check of workflows' (`sh ../seocart/bin/ci/check-workflows.sh .`), which the required
@@ -29,6 +29,7 @@ use SEOCart\Tests\Conformance\Payment\Live\WorkflowFacts;
  * - the three-d-secure job's settings step moved before its set-up action, in the file: the closed
  *   list fails naming the action;
  * - in the file, the harvest left out of the script's cleanup(): the clean-up's test fails;
+ * - the script's clean-up without SEOCart's lib no longer told apart: the clean-up fails there;
  * - in the file, the harvest's query piped into `tr` again, or the clean-up removing its folder
  *   whatever became of the harvest: the test of a failed harvest fails;
  * - tests/Support/Live/Verdict.php restored: the copies' test fails naming it.
@@ -244,6 +245,34 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	}
 
 	/**
+	 * Tests that the clean-up, which runs whatever became of the job's steps, passes and says why when SEOCart was never checked out, and that every other step still fails there.
+	 *
+	 * The script runs from a folder of the test's own, as ext/bin/ci/paypal-sandbox.sh with no
+	 * seocart/ beside it, as when the secrets' check, the choice of SEOCart's commit or its checkout
+	 * failed: the settings step comes after that checkout, so nothing was sent to PayPal.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_the_cleanup_passes_without_seocart_and_every_other_step_fails(): void {
+		$root = sys_get_temp_dir() . '/paypal-sandbox-no-seocart-' . bin2hex( random_bytes( 8 ) );
+		$said = 'cleanup: SEOCart was not checked out, so no settings file was written and nothing was sent to PayPal.';
+
+		try {
+			mkdir( $root . '/ext/bin/ci', 0700, true );
+			mkdir( $root . '/temp', 0700 );
+			copy( dirname( __DIR__, 2 ) . '/' . self::declaration()->script(), $root . '/ext/' . self::declaration()->script() );
+
+			foreach ( array( 'cleanup', 'settings', 'configure', 'checkout' ) as $step ) {
+				list( $status, $printed ) = self::step( $root, $step );
+
+				$this->assertSame( array( 'cleanup' === $step, 'cleanup' === $step ), array( 0 === $status, str_contains( $printed, $said ) ), $step . ': ' . $printed );
+			}
+		} finally {
+			self::remove( $root );
+		}
+	}
+
+	/**
 	 * Tests that no file of the plugin's tests declares a class of SEOCart's live workflow: a copy left behind would drift from SEOCart's.
 	 *
 	 * @since 0.2.0
@@ -336,6 +365,24 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		$reap = array_keys( preg_grep( '/^\s*harvest_site\b/', $body ) );
 
 		return array() !== $void && array() !== $reap && $reap[0] < $void[0] ? null : 'cleanup() voids what the run list names without putting the site\'s orders on it first.';
+	}
+
+	/**
+	 * Runs one step of the script copied into a folder of the test's own, its temporary directory in that folder.
+	 *
+	 * @since 0.2.0
+	 *
+	 * @param string $root The folder, holding the script as ext/bin/ci/paypal-sandbox.sh.
+	 * @param string $step The step.
+	 * @return array{int, string} Its exit status and what it printed.
+	 */
+	private static function step( string $root, string $step ): array {
+		$output = array();
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- the script's own step, in a folder of the test's own.
+		exec( sprintf( 'env RUNNER_TEMP=%1$s sh %2$s %3$s 2>&1', escapeshellarg( $root . '/temp' ), escapeshellarg( $root . '/ext/' . self::declaration()->script() ), escapeshellarg( $step ) ), $output, $status );
+
+		return array( $status, implode( "\n", $output ) );
 	}
 
 	/**
