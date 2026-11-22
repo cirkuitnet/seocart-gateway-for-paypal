@@ -13,7 +13,9 @@ namespace SEOCart\GatewayForPayPal\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use SEOCart\GatewayForPayPal\Tests\Support\Live\PayPalRun;
+use SEOCart\Tests\Conformance\Payment\Live\LiveDeclaration;
 use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
+use SEOCart\Tools\Packaging\Tests\TemporaryDirectory;
 
 /**
  * The guard built from tests/live.php refuses an argument shaped like a credential (48 letters, digits, `_` and `-` or more, as PayPal's client ids, secrets and access tokens are, unless the whole run is a test's name), an authorization header, an address with a query, or a card number, and blanks the same shapes out of any text; PayPal's ids, of 17 characters or of an event's 38, pass, as does a run of digits that is no card, and an id whose digits read as a card is withheld when shown. A test's name, `test_` and then lower-case letters, digits and `_` alone, is printed, so a red run of the live workflow says which test failed: every live test's and the longest of the plugin's, alone and on the line PHPUnit names a failure with, and in PHPUnit's own output for a failing live test passed through the workflow's filter, where an access token in the failure's message stays hidden. A run that only starts as a test's name does or holds one after other characters is hidden whole, as is one of lower-case letters and digits that does not start with `test_`. The run list keeps one order per line with the store uuid it was made for, and reads back only lines of that shape; the card script's line is read as its word and the issue PayPal named; and a uuid the live tests make is a version 4 uuid.
@@ -26,6 +28,8 @@ use SEOCart\Tests\Conformance\Payment\Live\LiveRun;
  * @since 0.2.0
  */
 final class LiveDeclarationTest extends TestCase {
+
+	use TemporaryDirectory;
 
 	/**
 	 * Tests the shapes refused.
@@ -131,6 +135,52 @@ final class LiveDeclarationTest extends TestCase {
 			$this->assertNull( PayPalRun::guard()->shapeOf( $name ), $name . ' is printed.' );
 			$this->assertSame( $line, PayPalRun::guard()->redact( $line ) );
 		}
+	}
+
+	/**
+	 * Tests the live workflow's filter, as SEOCart's lib runs it with this plugin's declaration, on what PHPUnit prints for a failing live test whose message holds an access token: the test's name is printed, the token is not, and PHPUnit's status is the step's.
+	 *
+	 * The failing test has the class and the name of the live test whose name is the longest, and
+	 * PHPUnit runs it in a directory of this test's own.
+	 *
+	 * @since 0.2.0
+	 */
+	public function test_a_red_live_run_names_its_failing_test_and_hides_a_credential_in_the_failure(): void {
+		$live    = self::testsIn( 'tests/Integration/Live' );
+		$name    = self::longest( array_keys( $live ) );
+		$token   = self::credential( 'A21AA', 97 );
+		$split   = (int) strrpos( $live[ $name ], '\\' );
+		$test    = $this->writeFile(
+			substr( $live[ $name ], $split + 1 ) . '.php',
+			sprintf(
+				"<?php\nnamespace %1\$s;\n\nfinal class %2\$s extends \\PHPUnit\\Framework\\TestCase {\n\tpublic function %3\$s(): void {\n\t\tself::fail( %4\$s );\n\t}\n}\n",
+				substr( $live[ $name ], 0, $split ),
+				substr( $live[ $name ], $split + 1 ),
+				$name,
+				var_export( 'PayPal answered with ' . $token . '.', true )
+			)
+		);
+		$core    = dirname( (string) ( new \ReflectionClass( LiveDeclaration::class ) )->getFileName(), 5 );
+		$program = implode(
+			"\n",
+			array(
+				'core=$1',
+				'ext=$2',
+				'. "$core/bin/ci/extension-live-lib.sh"',
+				'mkdir -p "$work"',
+				'filtered "$work/kept" php "$core/vendor/bin/phpunit" --no-configuration --do-not-cache-result --verbose "$3"',
+				'printf "status=%s\n" "$?"',
+			)
+		);
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- the workflow's own filter, on a PHPUnit run of the test's own.
+		exec( sprintf( 'cd %1$s && env RUNNER_TEMP=%1$s sh -c %2$s sh %3$s %4$s %5$s 2>&1', escapeshellarg( $this->directory ), escapeshellarg( $program ), escapeshellarg( $core ), escapeshellarg( dirname( __DIR__, 2 ) ), escapeshellarg( $test ) ), $output );
+
+		$shown = implode( "\n", $output );
+
+		$this->assertStringContainsString( "\n1) " . $live[ $name ] . '::' . $name . "\nPayPal answered with [redacted: a credential].\n", $shown );
+		$this->assertStringNotContainsString( $token, $shown . (string) file_get_contents( $this->directory . '/seocart-live/kept' ) );
+		$this->assertStringEndsWith( "\nstatus=1", $shown );
 	}
 
 	/**
