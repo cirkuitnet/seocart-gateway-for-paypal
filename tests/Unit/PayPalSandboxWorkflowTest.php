@@ -12,6 +12,7 @@ declare( strict_types=1 );
 namespace SEOCart\GatewayForPayPal\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use SEOCart\GatewayForPayPal\Tests\Support\TemporaryFolder;
 use SEOCart\Tests\Conformance\Payment\Live\LiveDeclaration;
 use SEOCart\Tests\Conformance\Payment\Live\SettingsLast;
 use SEOCart\Tests\Conformance\Payment\Live\WorkflowFacts;
@@ -168,7 +169,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @param string $said   Text the step prints.
 	 */
 	public function test_the_cleanup_voids_what_is_listed_and_fails_when_the_harvest_fails( string $wp, bool $failed, string $voided, string $said ): void {
-		$root   = sys_get_temp_dir() . '/paypal-sandbox-cleanup-' . bin2hex( random_bytes( 8 ) );
+		$root   = TemporaryFolder::make( 'paypal-sandbox-cleanup' );
 		$work   = $root . '/seocart-live';
 		$listed = "LISTED00000000001 0199c0de-0000-7000-8000-00000000a001\n";
 
@@ -192,7 +193,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 			$this->assertSame( $voided, is_file( $root . '/voided' ) ? file_get_contents( $root . '/voided' ) : 'nothing', 'The voiding is given the run list.' );
 			$this->assertSame( $failed ? $listed : 'nothing', is_file( $work . '/settings.json' ) && is_dir( $work . '/site' ) ? file_get_contents( $work . '/run-list' ) : 'nothing', 'The settings file, the run list and the site are kept when the harvest failed, and only then.' );
 		} finally {
-			self::remove( $root );
+			TemporaryFolder::remove( $root );
 		}
 	}
 
@@ -254,7 +255,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 	 * @since 0.2.0
 	 */
 	public function test_the_cleanup_passes_without_seocart_and_every_other_step_fails(): void {
-		$root = sys_get_temp_dir() . '/paypal-sandbox-no-seocart-' . bin2hex( random_bytes( 8 ) );
+		$root = TemporaryFolder::make( 'paypal-sandbox-no-seocart' );
 		$said = 'cleanup: SEOCart was not checked out, so no settings file was written and nothing was sent to PayPal.';
 
 		try {
@@ -268,7 +269,7 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 				$this->assertSame( array( 'cleanup' === $step, 'cleanup' === $step ), array( 0 === $status, str_contains( $printed, $said ) ), $step . ': ' . $printed );
 			}
 		} finally {
-			self::remove( $root );
+			TemporaryFolder::remove( $root );
 		}
 	}
 
@@ -383,25 +384,6 @@ final class PayPalSandboxWorkflowTest extends TestCase {
 		exec( sprintf( 'env RUNNER_TEMP=%1$s sh %2$s %3$s 2>&1', escapeshellarg( $root . '/temp' ), escapeshellarg( $root . '/ext/' . self::declaration()->script() ), escapeshellarg( $step ) ), $output, $status );
 
 		return array( $status, implode( "\n", $output ) );
-	}
-
-	/**
-	 * Removes a file or a folder of the test's own, and everything in it.
-	 *
-	 * @since 0.2.0
-	 *
-	 * @param string $path The file or folder.
-	 */
-	private static function remove( string $path ): void {
-		if ( is_dir( $path ) && ! is_link( $path ) ) {
-			foreach ( array_diff( (array) scandir( $path ), array( '.', '..' ) ) as $name ) {
-				self::remove( $path . '/' . $name );
-			}
-
-			rmdir( $path );
-		} elseif ( file_exists( $path ) || is_link( $path ) ) {
-			unlink( $path );
-		}
 	}
 
 	/**
