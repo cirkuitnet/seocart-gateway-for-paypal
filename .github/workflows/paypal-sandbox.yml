@@ -22,8 +22,9 @@
 # and the browser tests take no trace, video or screenshot. A job writes the settings file only
 # once it has installed and built everything it needs.
 # Every job voids what it left authorized at PayPal; an order nobody approved holds nothing and
-# lapses at PayPal by itself, and no job creates, changes or removes a webhook. Without the
-# PAYPAL_WEBHOOK_ID secret the webhooks part runs nothing and says why; the other parts run.
+# lapses at PayPal by itself, and no job creates, changes or removes a webhook. The part
+# tests/live.php states as optional runs nothing without the secret it names, and says why; the
+# other parts run.
 
 name: PayPal sandbox
 
@@ -168,9 +169,9 @@ jobs:
                   PAYPAL_SECRET_KEY: ${{ secrets.PAYPAL_SECRET_KEY }}
                   PAYPAL_WEBHOOK_ID: ${{ secrets.PAYPAL_WEBHOOK_ID }}
 
-            # The suite as the replay runs it, every request sent to PayPal: the replay's 17 tests
-            # with its two skips, rules 9 and 17, and no other. The orders it creates are read from
-            # the tapes it records onto the run list, which the cleanup works from.
+            # The suite as the replay runs it, every request sent to PayPal: the tests and the skips
+            # tests/live.php states, and no other. The orders it creates are read from the tapes it
+            # records onto the run list, which the cleanup works from.
             - name: Run the conformance suite against PayPal's sandbox
               id: run
               run: sh seocart/bin/ci/extension-live.sh conformance ext
